@@ -1416,32 +1416,61 @@ body::before {
 
 <script>
 // ═══════════════════════════════════════════════════════════
-// META API — CONEXÃO REAL
+// META API — CONEXÃO REAL (ROBUST VERSION)
 // ═══════════════════════════════════════════════════════════
-const SUPABASE_URL = 'https://npmqtopvsucpwtwfcuqw.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_hbs3q37LSVRoC-kP1QdDUQ_zt9X-xlr';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-let META_TOKEN = 'EAAhdWvjrnBcBQ9zuQNBRBDaKRwhZCMrFn2QfAGQ8vrqZCiRZBo6nmxz09lCjq3EhhPLXIHdjZCZAlvMQUhDIcpkgSJ2vhdsA71RkZBAznfQsNrA2dFC95bw5HIvRtZBE3qn7TKGdsNZBfU2y2QfCj6M7afQdAVL0sIvYp0xGAC7XCbCzZAKZAmQVo93984MBsZCwQZDZD';
-const META_APP_ID = '2354445118315543';
-const GRAPH = 'https://graph.facebook.com/v19.0';
+// Robust Initialization to avoid re-declaration errors
+window.SUPABASE_URL = 'https://npmqtopvsucpwtwfcuqw.supabase.co';
+window.SUPABASE_ANON_KEY = 'sb_publishable_hbs3q37LSVRoC-kP1QdDUQ_zt9X-xlr';
+
+// Global variables
+window.META_TOKEN = 'EAAhdWvjrnBcBQ9zuQNBRBDaKRwhZCMrFn2QfAGQ8vrqZCiRZBo6nmxz09lCjq3EhhPLXIHdjZCZAlvMQUhDIcpkgSJ2vhdsA71RkZBAznfQsNrA2dFC95bw5HIvRtZBE3qn7TKGdsNZBfU2y2QfCj6M7afQdAVL0sIvYp0xGAC7XCbCzZAKZAmQVo93984MBsZCwQZDZD';
+window.currentDatePreset = 'last_7d';
+window.activeAdAccountId = null;
+window.allAdAccounts = [];
+
+/**
+ * INITIALIZE SUPABASE
+ */
+try {
+  if (typeof window.supabase === 'undefined' || !window.supabase.createClient) {
+    console.warn("Supabase SDK potentially missing from window object in meta-ads-dashboard.html.");
+  }
+  window.supabaseClient = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+} catch (e) {
+  console.error("Erro ao inicializar Supabase em meta-ads-dashboard.html:", e);
+}
 
 // Buscar token com segurança do Supabase
 async function getMetaToken() {
   try {
-    const { data, error } = await supabase.from('config').select('value').eq('key', 'meta_token').single();
-    if (data) META_TOKEN = data.value;
-  } catch(e) { console.warn('Usando token fallback'); }
+    const { data, error } = await window.supabaseClient.from('config').select('value').eq('key', 'meta_token').single();
+    if (data) window.META_TOKEN = data.value;
+  } catch(e) { console.warn('Usando token fallback em meta-ads-dashboard.html'); }
 }
 
-// Salvar snapshot após carregar dados reais
 // Função de atualizar chamada pelo HTML
-async function refreshData() {
+window.refreshData = async function() {
+  loadingAnim();
   await loadAdAccounts();
-}
+  showToast('🔄 Atualizando dados da Meta API...');
+};
 
-// Alias para compatibilidade
-const setTab = (...args) => setNavTab(...args);
+// Aliases para compatibilidade
+window.setNavTab = function(targetId, btnElt) {
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  if(btnElt) btnElt.classList.add('active');
+
+  ['view-dashboard', 'view-pixels', 'view-config', 'view-empty'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.style.display = 'none';
+  });
+
+  const target = document.getElementById('view-' + targetId);
+  if(target) target.style.display = (targetId === 'empty' || targetId === 'view-empty') ? 'flex' : 'block';
+};
+
+window.setTab = (targetId, btnElt) => window.setNavTab(targetId, btnElt);
 
 async function saveSnapshot(accountId, accountName, period, insightsArr) {
   try {
@@ -1451,17 +1480,17 @@ async function saveSnapshot(accountId, accountName, period, insightsArr) {
     const leads = getActionValue(ins.actions, ['lead', 'onsite_conversion.lead_grouped', 'offsite_conversion.fb_pixel_lead']);
     const revenue = getActionValue(ins.action_values, ['purchase', 'omni_purchase', 'offsite_conversion.fb_pixel_purchase']);
 
-    await supabase.from('account_snapshots').upsert({
+    await window.supabaseClient.from('account_snapshots').upsert({
       account_id: accountId,
       account_name: accountName,
       date: today,
-      period,
-      spend,
+      period: period,
+      spend: spend,
       impressions: parseInt(ins.impressions || 0),
       reach: parseInt(ins.reach || 0),
       clicks: parseInt(ins.clicks || 0),
-      leads,
-      revenue,
+      leads: leads,
+      revenue: revenue,
       roas: spend > 0 && revenue > 0 ? revenue / spend : 0,
       cpl: leads > 0 ? spend / leads : 0,
       ctr: parseFloat(ins.ctr || 0),
@@ -1471,38 +1500,11 @@ async function saveSnapshot(accountId, accountName, period, insightsArr) {
   } catch(e) { console.warn('Erro ao salvar snapshot:', e.message); }
 }
 
-// Controle de abas
-
-// Controle de abas
-function setNavTab(targetId, btnElt) {
-  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-  btnElt.classList.add('active');
-
-  ['view-dashboard', 'view-pixels', 'view-config', 'view-empty'].forEach(id => {
-    const el = document.getElementById(id);
-    if(el) el.style.display = 'none';
-  });
-
-  const target = document.getElementById('view-' + targetId);
-  if(target) target.style.display = targetId === 'empty' ? 'flex' : 'block';
-}
-
-// Período atual selecionado
-let currentDatePreset = 'last_7d';
-let activeAdAccountId = null;
-let allAdAccounts = [];
-
-const DATE_PRESETS = {
-  '24h': 'today',
-  '7d': 'last_7d',
-  '30d': 'last_30d',
-  '3m': 'last_90d',
-  '1a': 'last_year'
-};
+const DATE_PRESETS = { '24h': 'today', '7d': 'last_7d', '30d': 'last_30d', '3m': 'last_90d', '1a': 'last_year' };
 
 async function metaGet(path, params = {}) {
-  const url = new URL(`${GRAPH}/${path}`);
-  url.searchParams.set('access_token', META_TOKEN);
+  const url = new URL(`https://graph.facebook.com/v19.0/${path}`);
+  url.searchParams.set('access_token', window.META_TOKEN);
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
   const res = await fetch(url.toString());
   const data = await res.json();

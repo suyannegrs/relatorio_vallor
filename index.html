@@ -550,28 +550,35 @@
 <div id="toast"></div>
 
 <script>
-  const SUPABASE_URL  = 'https://npmqtopvsucpwtwfcuqw.supabase.co';
-  const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5wbXF0b3B2c3VjcHd0d2ZjdXF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyMzk5MTUsImV4cCI6MjA4ODgxNTkxNX0.wOrf5jQj3ai55x3LeR8YWj0HsGQibactzFoEqKcKQe4';
-  let supabase;
-  try {
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-  } catch(e) { console.error("Erro ao inicializar Supabase:", e); }
+  // Robust Initialization to avoid re-declaration errors if the script runs twice
+  window.SUPABASE_URL = 'https://npmqtopvsucpwtwfcuqw.supabase.co';
+  window.SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5wbXF0b3B2c3VjcHd0d2ZjdXF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyMzk5MTUsImV4cCI6MjA4ODgxNTkxNX0.wOrf5jQj3ai55x3LeR8YWj0HsGQibactzFoEqKcKQe4';
+  
+  // Use a global to store chart instances
+  window.chartInstances = {
+    main: null,
+    roas: null,
+    obj: null
+  };
 
-  // Alias para garantir compatibilidade se o HTML chamar setNavTab
-  const setNavTab = (...args) => setTab(...args);
-
-  let META_TOKEN = ''; 
-  const META_APP_ID = '2354445118315543';
+  window.activeAccountId = null;
+  window.allAccounts = [];
+  window.currentPreset = 'last_7d';
+  window.META_TOKEN = '';
+  
   const GRAPH = 'https://graph.facebook.com/v19.0';
-  
-  let currentPreset = 'last_7d';
-  let activeAccountId = null;
-  let allAccounts = [];
-  
-  // Chart Instances
-  let mainChartInst = null;
-  let roasChartInst = null;
-  let objChartInst = null;
+
+  /**
+   * INITIALIZE SUPABASE
+   */
+  try {
+    if (typeof window.supabase === 'undefined' || !window.supabase.createClient) {
+      console.warn("Supabase SDK potentially missing from window object.");
+    }
+    window.supabaseClient = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
+  } catch (e) {
+    console.error("Erro ao inicializar Supabase:", e);
+  }
 
   const LOGIN_HTML = `
     <div id="loginScreen" style="position:fixed; inset:0; background:var(--bg); z-index:9999; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(20px);">
@@ -586,104 +593,132 @@
     </div>
   `;
 
+  /**
+   * INITIALIZATION FLOW
+   */
   document.addEventListener('DOMContentLoaded', async () => {
+    // 1. UI Setup
     document.body.insertAdjacentHTML('afterbegin', LOGIN_HTML);
     setDate();
-    initCharts();
-    checkSession();
+    
+    // 2. Charts Setup
+    try {
+      initAllCharts();
+    } catch(e) { console.error("Erro ao inicializar gráficos:", e); }
+    
+    // 3. Auth Check
+    await checkSession();
   });
 
   async function getMetaToken() {
-    const { data, error } = await supabase
+    const { data, error } = await window.supabaseClient
       .from('config')
       .select('value')
       .eq('key', 'meta_token')
       .single();
-    if (error) throw new Error('Token não encontrado');
+    if (error) throw new Error('Token não encontrado no banco de dados');
     return data.value;
   }
 
-  async function doLogin() {
+  window.doLogin = async function() {
     const email    = document.getElementById('loginEmail').value;
     const password = document.getElementById('loginPassword').value;
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await window.supabaseClient.auth.signInWithPassword({ email, password });
     if (error) {
       document.getElementById('loginError').style.display = 'block';
       return;
     }
-    document.getElementById('loginScreen').style.display = 'none';
-    showToast('✅ Bem-vindo, Hellden!');
-    const token = await getMetaToken();
-    window.META_TOKEN = token; 
-    META_TOKEN = token;
-    await loadAdAccounts();
-  }
+    await checkSession();
+  };
 
   async function checkSession() {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session) {
-      if(document.getElementById('loginScreen')) document.getElementById('loginScreen').style.display = 'none';
-      const token = await getMetaToken();
-      window.META_TOKEN = token;
-      META_TOKEN = token;
-      await loadAdAccounts();
+    try {
+      const { data: { session } } = await window.supabaseClient.auth.getSession();
+      if (session) {
+        if(document.getElementById('loginScreen')) document.getElementById('loginScreen').style.display = 'none';
+        window.META_TOKEN = await getMetaToken();
+        await loadAdAccounts();
+      } else {
+        if(document.getElementById('loginScreen')) document.getElementById('loginScreen').style.display = 'flex';
+      }
+    } catch(e) {
+      console.error("Erro no checkSession:", e);
     }
   }
 
-  async function doLogout() {
-    await supabase.auth.signOut();
+  window.doLogout = async function() {
+    await window.supabaseClient.auth.signOut();
     location.reload();
-  }
+  };
 
+  /**
+   * DATA OPERATIONS
+   */
   async function saveSnapshot(accountId, accountName, period, ins) {
-    const today   = new Date().toISOString().slice(0, 10);
-    const spend   = parseFloat(ins?.spend || 0);
-    const leads   = getActionValue(ins?.actions,       ['lead','onsite_conversion.lead_grouped','offsite_conversion.fb_pixel_lead']);
-    const revenue = getActionValue(ins?.action_values, ['purchase','omni_purchase','offsite_conversion.fb_pixel_purchase']);
-    await supabase.from('account_snapshots').upsert({
-      account_id:   accountId,
-      account_name: accountName,
-      date:         today,
-      period,
-      spend,
-      impressions:  parseInt(ins?.impressions || 0),
-      reach:        parseInt(ins?.reach       || 0),
-      clicks:       parseInt(ins?.clicks      || 0),
-      leads,
-      revenue,
-      roas:  spend > 0 && revenue > 0 ? revenue / spend : 0,
-      cpl:   leads > 0               ? spend   / leads  : 0,
-      ctr:   parseFloat(ins?.ctr || 0),
-      cpm:   parseFloat(ins?.cpm || 0),
-      cpc:   parseFloat(ins?.cpc || 0),
-    }, { onConflict: 'account_id,date,period' });
+    if (!ins) return;
+    try {
+      const today   = new Date().toISOString().slice(0, 10);
+      const spend   = parseFloat(ins.spend || 0);
+      const leads   = getActionValue(ins.actions, ['lead','onsite_conversion.lead_grouped','offsite_conversion.fb_pixel_lead']);
+      const revenue = getActionValue(ins.action_values, ['purchase','omni_purchase','offsite_conversion.fb_pixel_purchase']);
+      
+      await window.supabaseClient.from('account_snapshots').upsert({
+        account_id:   accountId,
+        account_name: accountName,
+        date:         today,
+        period:       period,
+        spend:        spend,
+        impressions:  parseInt(ins.impressions || 0),
+        reach:        parseInt(ins.reach || 0),
+        clicks:       parseInt(ins.clicks || 0),
+        leads:        leads,
+        revenue:      revenue,
+        roas:         spend > 0 && revenue > 0 ? revenue / spend : 0,
+        cpl:          leads > 0 ? spend / leads : 0,
+        ctr:          parseFloat(ins.ctr || 0),
+        cpm:          parseFloat(ins.cpm || 0),
+        cpc:          parseFloat(ins.cpc || 0),
+      }, { onConflict: 'account_id,date,period' });
+    } catch(e) { console.warn("Erro ao salvar snapshot:", e.message); }
   }
 
-  /* Navigation Tabs */
-  function setTab(tab, btnElt) {
-    // Update active class on nav
-    document.querySelectorAll('#sidebarNav .nav-item').forEach(b => b.classList.remove('active'));
-    btnElt.classList.add('active');
-    
-    // Toggle views
+  window.setTab = function(tab, btnElt) {
+    if (!btnElt) {
+      const items = document.querySelectorAll('#sidebarNav .nav-item');
+      items.forEach(item => { if(item.textContent.toLowerCase().includes(tab.toLowerCase())) btnElt = item; });
+    }
+    if(btnElt) {
+      document.querySelectorAll('#sidebarNav .nav-item').forEach(b => b.classList.remove('active'));
+      btnElt.classList.add('active');
+    }
     ['view-dashboard', 'view-pixels', 'view-config', 'view-empty'].forEach(id => {
-      const el = document.getElementById(id);
-      if(el) el.style.display = 'none';
+      const el = document.getElementById(id); if(el) el.style.display = 'none';
     });
-
-    const targetId = tab === 'dashboard' || tab === 'pixels' || tab === 'config' ? 'view-' + tab : 'view-empty';
+    const targetId = ['dashboard', 'pixels', 'config'].includes(tab) ? 'view-' + tab : 'view-empty';
     const targetEl = document.getElementById(targetId);
-    if(targetEl) targetEl.style.display = 'flex';
-  }
+    if(targetEl) {
+      targetEl.style.display = 'flex';
+      if(targetId === 'view-dashboard') targetEl.style.flexDirection = 'column';
+    }
+  };
+  
+  // Alias for compatibility
+  window.setNavTab = window.setTab;
 
-  /* Utils */
+  window.toggleClientList = function() {
+    const list = document.getElementById('clientList');
+    if(list) list.classList.toggle('open');
+  };
+
   function setDate() {
     const d = new Date();
-    document.getElementById('currentDate').textContent = d.toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const elt = document.getElementById('currentDate');
+    if(elt) elt.textContent = d.toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   }
 
   function showToast(msg, isError=false) {
     const toast = document.getElementById('toast');
+    if(!toast) return;
     toast.textContent = msg;
     toast.style.borderLeft = `4px solid ${isError ? 'var(--red)' : 'var(--green)'}`;
     toast.classList.add('show');
@@ -692,31 +727,23 @@
 
   function loadingAnim(start) {
     const bar = document.getElementById('loading-bar');
+    if(!bar) return;
     if(start) { bar.style.width = '30%'; bar.style.opacity = '1'; }
     else { bar.style.width = '100%'; setTimeout(() => { bar.style.opacity = '0'; setTimeout(()=>bar.style.width='0%',200); }, 300); }
   }
 
-  function toBRL(val) {
-    return 'R$ ' + (parseFloat(val) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-  }
+  const toBRL = (val) => 'R$ ' + (parseFloat(val) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  const nFormat = (val) => val >= 1000000 ? (val/1000000).toFixed(1) + 'M' : (val >= 1000 ? (val/1000).toFixed(1) + 'k' : (parseFloat(val)||0).toLocaleString('pt-BR'));
 
-  function nFormat(val) {
-    if(val >= 1000000) return (val/1000000).toFixed(1) + 'M';
-    if(val >= 1000) return (val/1000).toFixed(1) + 'k';
-    return (parseFloat(val)||0).toLocaleString('pt-BR');
-  }
+  window.openExportModal = () => document.getElementById('exportModal')?.classList.add('open');
+  window.closeExportModal = () => document.getElementById('exportModal')?.classList.remove('open');
 
-  function toggleClientList() {
-    document.getElementById('clientList').classList.toggle('open');
-  }
-  
-  function openExportModal() { document.getElementById('exportModal').classList.add('open'); }
-  function closeExportModal() { document.getElementById('exportModal').classList.remove('open'); }
-
-  /* API Connect */
+  /**
+   * API CALLS
+   */
   async function metaGet(path, params = {}) {
     const url = new URL(`${GRAPH}/${path}`);
-    url.searchParams.set('access_token', window.META_TOKEN || META_TOKEN);
+    url.searchParams.set('access_token', window.META_TOKEN);
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
     const res = await fetch(url.toString());
     const data = await res.json();
@@ -730,30 +757,29 @@
     return actions.filter(a => t.includes(a.action_type)).reduce((s, a) => s + parseFloat(a.value || 0), 0);
   }
 
-  /* Load Accounts */
   async function loadAdAccounts() {
     loadingAnim(true);
-    // GET /me/adaccounts might require specific permissions, assuming token is valid
     try {
       const data = await metaGet('me/adaccounts', { fields: 'id,name,account_status,currency,balance,amount_spent,business', limit: 50 });
-      allAccounts = data.data || [];
+      window.allAccounts = data.data || [];
       populateClientList();
-      if(allAccounts.length > 0) {
-        selectRealClient(allAccounts[0].id, allAccounts[0].name);
+      if(window.allAccounts.length > 0) {
+        await selectRealClient(window.allAccounts[0].id, window.allAccounts[0].name);
         buildMultiBmTable();
       } else {
         showToast('Nenhuma conta encontrada.', true);
-        loadingAnim(false);
       }
     } catch(e) {
-      throw e;
+      showToast('Erro API: ' + e.message, true);
     }
+    loadingAnim(false);
   }
 
   function populateClientList() {
     const list = document.getElementById('clientList');
+    if(!list) return;
     list.innerHTML = '';
-    allAccounts.forEach(acc => {
+    window.allAccounts.forEach(acc => {
       const div = document.createElement('div');
       div.className = 'client-item';
       div.textContent = acc.name || acc.id;
@@ -762,41 +788,41 @@
     });
   }
 
-  async function setPreset(preset, btnElt) {
+  window.setPreset = async function(preset, btnElt) {
     document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
-    btnElt.classList.add('active');
-    currentPreset = preset;
-    if(activeAccountId) { await selectRealClient(activeAccountId, document.getElementById('selectedClient').textContent); }
-  }
+    if(btnElt) btnElt.classList.add('active');
+    window.currentPreset = preset;
+    if(window.activeAccountId) await selectRealClient(window.activeAccountId, document.getElementById('selectedClient').textContent);
+  };
   
-  async function refreshData() {
-    if(activeAccountId) { await selectRealClient(activeAccountId, document.getElementById('selectedClient').textContent); }
-  }
+  window.refreshData = async function() {
+    if(window.activeAccountId) await selectRealClient(window.activeAccountId, document.getElementById('selectedClient').textContent);
+    else await loadAdAccounts();
+  };
 
   async function selectRealClient(accountId, name) {
-    activeAccountId = accountId;
-    document.getElementById('selectedClient').textContent = name || accountId;
-    document.getElementById('clientList').classList.remove('open');
+    window.activeAccountId = accountId;
+    const nameElt = document.getElementById('selectedClient');
+    if(nameElt) nameElt.textContent = name || accountId;
+    document.getElementById('clientList')?.classList.remove('open');
     loadingAnim(true);
     
-    // Set status bar details
-    const acc = allAccounts.find(a => a.id === accountId);
+    const acc = window.allAccounts.find(a => a.id === accountId);
     if(acc) {
-      document.getElementById('actNameTop').textContent = acc.name || accountId;
-      document.getElementById('actIdTop').textContent = acc.id.replace('act_', '');
-      document.getElementById('actBmId').textContent = acc.business ? acc.business.id : 'N/A';
-      document.getElementById('actBalance').textContent = acc.balance ? toBRL((parseFloat(acc.balance)/100).toFixed(2)) : 'R$ 0'; 
+      if(document.getElementById('actNameTop')) document.getElementById('actNameTop').textContent = acc.name || accountId;
+      if(document.getElementById('actIdTop')) document.getElementById('actIdTop').textContent = acc.id.replace('act_', '');
+      if(document.getElementById('actBmId')) document.getElementById('actBmId').textContent = acc.business ? acc.business.id : 'N/A';
+      if(document.getElementById('actBalance')) document.getElementById('actBalance').textContent = acc.balance ? toBRL((parseFloat(acc.balance)/100).toFixed(2)) : 'R$ 0'; 
     }
 
     try {
-      // Parallel fetches for speed
       const [genInsights, dayInsights, demoInsights, geoInsights, topAds, topCampaigns] = await Promise.all([
-        metaGet(`${accountId}/insights`, { fields: 'spend,impressions,reach,clicks,ctr,cpm,cpc,actions,action_values', date_preset: currentPreset, level: 'account' }).catch(()=>({data:[]})),
-        metaGet(`${accountId}/insights`, { fields: 'spend,actions,date_start', date_preset: currentPreset, time_increment: 1, level: 'account' }).catch(()=>({data:[]})),
-        metaGet(`${accountId}/insights`, { fields: 'spend,actions,reach', date_preset: currentPreset, breakdowns: 'age,gender', level: 'account' }).catch(()=>({data:[]})),
-        metaGet(`${accountId}/insights`, { fields: 'spend,impressions', date_preset: currentPreset, breakdowns: 'region', limit: 10, level: 'account' }).catch(()=>({data:[]})),
-        metaGet(`${accountId}/insights`, { fields: 'ad_name,ad_id,spend,impressions,clicks,ctr,actions,action_values', date_preset: currentPreset, level: 'ad', sort: 'spend_descending', limit: 10 }).catch(()=>({data:[]})),
-        metaGet(`${accountId}/insights`, { fields: 'campaign_name,spend,actions,action_values', date_preset: currentPreset, level: 'campaign', sort: 'spend_descending', limit: 5 }).catch(()=>({data:[]}))
+        metaGet(`${accountId}/insights`, { fields: 'spend,impressions,reach,clicks,ctr,cpm,cpc,actions,action_values', date_preset: window.currentPreset, level: 'account' }).catch(()=>({data:[]})),
+        metaGet(`${accountId}/insights`, { fields: 'spend,actions,date_start', date_preset: window.currentPreset, time_increment: 1, level: 'account' }).catch(()=>({data:[]})),
+        metaGet(`${accountId}/insights`, { fields: 'spend,actions,reach', date_preset: window.currentPreset, breakdowns: 'age,gender', level: 'account' }).catch(()=>({data:[]})),
+        metaGet(`${accountId}/insights`, { fields: 'spend,impressions', date_preset: window.currentPreset, breakdowns: 'region', limit: 10, level: 'account' }).catch(()=>({data:[]})),
+        metaGet(`${accountId}/insights`, { fields: 'ad_name,ad_id,spend,impressions,clicks,ctr,actions,action_values', date_preset: window.currentPreset, level: 'ad', sort: 'spend_descending', limit: 10 }).catch(()=>({data:[]})),
+        metaGet(`${accountId}/insights`, { fields: 'campaign_name,spend,actions,action_values', date_preset: window.currentPreset, level: 'campaign', sort: 'spend_descending', limit: 5 }).catch(()=>({data:[]}))
       ]);
 
       renderKPIs(genInsights.data[0]);
@@ -805,279 +831,117 @@
       renderGeo(geoInsights.data);
       renderTopAds(topAds.data);
       renderRoasChart(topCampaigns.data);
-      renderMockCopies(); // Since Meta API text fetching requires Creative endpoint mapping, mocking based on instructions for layout
+      renderMockCopies();
       
-      await saveSnapshot(accountId, name, currentPreset, genInsights.data[0]);
-      showToast('✅ Dados atualizados com sucesso!');
-    } catch(e) {
-      showToast('Erro ao carregar dados: ' + e.message, true);
-    }
-    
+      await saveSnapshot(accountId, name, window.currentPreset, genInsights.data[0]);
+      showToast('✅ Dados atualizados!');
+    } catch(e) { showToast('Falha carregamento: ' + e.message, true); }
     loadingAnim(false);
   }
 
-  /* Render Methods */
-
+  /**
+   * RENDERING
+   */
   function renderKPIs(ins) {
-    if(!ins) {
-      document.getElementById('kpiSpend').textContent = 'R$ 0'; document.getElementById('kpiRoas').textContent = '0.0x';
-      document.getElementById('kpiLeads').textContent = '0'; document.getElementById('kpiCpl').textContent = 'R$ 0';
-      return;
-    }
+    if(!ins) return;
     const spend = parseFloat(ins.spend || 0);
     const leads = getActionValue(ins.actions, ['lead', 'onsite_conversion.lead_grouped', 'offsite_conversion.fb_pixel_lead']);
     const revenue = getActionValue(ins.action_values, ['purchase', 'omni_purchase', 'offsite_conversion.fb_pixel_purchase']);
     
-    const roas = revenue > 0 && spend > 0 ? (revenue / spend).toFixed(1) + 'x' : '—';
-    const cpl = leads > 0 ? spend / leads : 0;
-
-    document.getElementById('kpiSpend').textContent = toBRL(spend);
-    document.getElementById('kpiRoas').textContent = roas;
-    document.getElementById('kpiLeads').textContent = Math.round(leads);
-    document.getElementById('kpiCpl').textContent = toBRL(cpl);
-
-    document.getElementById('skpiReach').textContent = nFormat(ins.reach);
-    document.getElementById('skpiImp').textContent = nFormat(ins.impressions);
-    document.getElementById('skpiCtr').textContent = (parseFloat(ins.ctr||0)).toFixed(2) + '%';
-    document.getElementById('skpiCpc').textContent = toBRL(ins.cpc);
-    document.getElementById('skpiCpm').textContent = toBRL(ins.cpm);
-    const convs = getActionValue(ins.actions, ['purchase', 'lead', 'complete_registration']);
-    document.getElementById('skpiConv').textContent = Math.round(convs);
+    if(document.getElementById('kpiSpend')) document.getElementById('kpiSpend').textContent = toBRL(spend);
+    if(document.getElementById('kpiRoas')) document.getElementById('kpiRoas').textContent = revenue > 0 && spend > 0 ? (revenue / spend).toFixed(1) + 'x' : '—';
+    if(document.getElementById('kpiLeads')) document.getElementById('kpiLeads').textContent = Math.round(leads);
+    if(document.getElementById('kpiCpl')) document.getElementById('kpiCpl').textContent = leads > 0 ? toBRL(spend / leads) : 'R$ 0';
+    if(document.getElementById('skpiReach')) document.getElementById('skpiReach').textContent = nFormat(ins.reach);
+    if(document.getElementById('skpiImp')) document.getElementById('skpiImp').textContent = nFormat(ins.impressions);
+    if(document.getElementById('skpiCtr')) document.getElementById('skpiCtr').textContent = (parseFloat(ins.ctr||0)).toFixed(2) + '%';
+    if(document.getElementById('skpiCpc')) document.getElementById('skpiCpc').textContent = toBRL(ins.cpc);
+    if(document.getElementById('skpiCpm')) document.getElementById('skpiCpm').textContent = toBRL(ins.cpm);
   }
 
   function renderDemographics(data) {
     const cont = document.getElementById('demographicsContent');
-    if(!data || data.length === 0) { cont.innerHTML = '<div class="card-subtitle">Sem dados suficientes</div>'; return; }
-    
-    let genders = { male: 0, female: 0, unknown: 0 };
-    let total = 0;
-    let ages = {};
-    
+    if(!cont || !data || data.length === 0) return;
+    let genders = { male: 0, female: 0, unknown: 0 }, total = 0, ages = {};
     data.forEach(d => {
-      const g = d.gender; const r = parseInt(d.reach||0);
-      if(g === 'male') genders.male += r;
-      else if(g === 'female') genders.female += r;
-      else genders.unknown += r;
-      total += r;
-      ages[d.age] = (ages[d.age] || 0) + r;
+      const g = d.gender, r = parseInt(d.reach||0);
+      if(g === 'male') genders.male += r; else if(g === 'female') genders.female += r; else genders.unknown += r;
+      total += r; if(d.age) ages[d.age] = (ages[d.age] || 0) + r;
     });
-    
-    const pm = total? (genders.male/total*100).toFixed(1) : 0;
-    const pf = total? (genders.female/total*100).toFixed(1) : 0;
-    const pu = total? (genders.unknown/total*100).toFixed(1) : 0;
-
-    // Build age bars
-    let ageHtml = '';
-    const maxAge = Math.max(...Object.values(ages), 1);
-    const ageKeys = ['18-24', '25-34', '35-44', '45-54', '55-64', '65+'];
-    ageKeys.forEach(k => {
-      const val = ages[k] || 0;
-      const pct = (val/maxAge*100).toFixed(0);
-      ageHtml += `
-        <div class="bar-row">
-          <div class="bar-label"><span>${k}</span><span>${nFormat(val)}</span></div>
-          <div class="progress-track"><div class="progress-fill" style="width:${pct}%; background:var(--accent);"></div></div>
-        </div>
-      `;
+    const pm = total? (genders.male/total*100).toFixed(1) : 0, pf = total? (genders.female/total*100).toFixed(1) : 0, pu = total? (genders.unknown/total*100).toFixed(1) : 0;
+    let ageHtml = ''; const maxAge = Math.max(...Object.values(ages), 1);
+    ['18-24', '25-34', '35-44', '45-54', '55-64', '65+'].forEach(k => {
+      const v = ages[k] || 0; const pct = (v/maxAge*100).toFixed(0);
+      ageHtml += `<div class="bar-row"><div class="bar-label"><span>${k}</span><span>${nFormat(v)}</span></div><div class="progress-track"><div class="progress-fill" style="width:${pct}%; background:var(--accent);"></div></div></div>`;
     });
-
-    cont.innerHTML = `
-      <div style="display:flex; gap: 8px; margin-bottom: 24px;">
-        <div style="flex:${pf}; height:8px; background:var(--purple); border-radius:4px;"></div>
-        <div style="flex:${pm}; height:8px; background:var(--accent); border-radius:4px;"></div>
-        <div style="flex:${pu}; height:8px; background:var(--accent2); border-radius:4px;"></div>
-      </div>
-      <div class="flex-between" style="font-size:12px;">
-        <span style="color:var(--purple)">👩 ${pf}%</span>
-        <span style="color:var(--accent)">👨 ${pm}%</span>
-        <span style="color:var(--accent2)">👤 ${pu}%</span>
-      </div>
-      <div style="margin-top:24px;">${ageHtml}</div>
-    `;
+    cont.innerHTML = `<div style="display:flex; gap: 8px; margin-bottom: 24px;"><div style="flex:${pf}; height:8px; background:var(--purple); border-radius:4px;"></div><div style="flex:${pm}; height:8px; background:var(--accent); border-radius:4px;"></div><div style="flex:${pu}; height:8px; background:var(--accent2); border-radius:4px;"></div></div><div class="flex-between" style="font-size:12px;"><span style="color:var(--purple)">👩 ${pf}%</span><span style="color:var(--accent)">👨 ${pm}%</span><span style="color:var(--accent2)">👤 ${pu}%</span></div><div style="margin-top:24px;">${ageHtml}</div>`;
   }
 
   function renderGeo(data) {
     const cont = document.getElementById('locationsContent');
-    if(!data || data.length === 0) { cont.innerHTML = '<div class="card-subtitle">Sem dados suficientes</div>'; return; }
-    
-    let html = '';
-    let maxSpend = Math.max(...data.map(d=>parseFloat(d.spend||0)), 1);
-    
-    data.slice(0,6).forEach(d => {
-      const sp = parseFloat(d.spend||0);
-      const pct = (sp/maxSpend * 100).toFixed(0);
-      html += `
-        <div class="bar-row">
-          <div class="bar-label"><span>${d.region||'Desconhecido'}</span><span>${toBRL(sp)}</span></div>
-          <div class="progress-track"><div class="progress-fill" style="width:${pct}%; background:var(--accent2);"></div></div>
-        </div>
-      `;
+    if(!cont || !data || data.length === 0) return;
+    const validData = data.filter(d => d.region);
+    let maxSpend = Math.max(...validData.map(d=>parseFloat(d.spend||0)), 1), html = '';
+    validData.slice(0,6).forEach(d => {
+      const sp = parseFloat(d.spend||0), pct = (sp/maxSpend * 100).toFixed(0);
+      html += `<div class="bar-row"><div class="bar-label"><span>${d.region}</span><span>${toBRL(sp)}</span></div><div class="progress-track"><div class="progress-fill" style="width:${pct}%; background:var(--accent2);"></div></div></div>`;
     });
     cont.innerHTML = html;
   }
 
   function renderTopAds(data) {
     const cont = document.getElementById('creativesGrid');
+    if(!cont) return;
     cont.innerHTML = '';
-    if(!data || data.length === 0) return;
-    
+    if(!data || data.length === 0) { cont.innerHTML = '<div class="card-subtitle">Sem dados</div>'; return; }
     data.forEach((ad, i) => {
-      const rev = getActionValue(ad.action_values, ['purchase']);
-      const sp = parseFloat(ad.spend||0);
-      const roas = rev>0 && sp>0 ? (rev/sp).toFixed(2)+'x' : '-';
-      
-      const div = document.createElement('div');
-      div.className = 'creative-card';
-      div.innerHTML = `
-        <div class="creative-thumb">
-          <div class="rank-badge">#${i+1}</div>
-          ${i===0 ? '<div class="top-badge">TOP</div>':''}
-          🖼️
-        </div>
-        <div class="card-title" style="margin: 8px 0 4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${ad.ad_name}">
-          ${ad.ad_name}
-        </div>
-        <div class="card-subtitle">
-          <div>ROAS: <span class="t-green mono">${roas}</span></div>
-          <div>CTR: <span class="mono">${parseFloat(ad.ctr||0).toFixed(2)}%</span></div>
-          <div>Gasto: <span class="mono">${toBRL(sp)}</span></div>
-        </div>
-      `;
+      const rev = getActionValue(ad.action_values, ['purchase']), sp = parseFloat(ad.spend||0), roas = rev>0 && sp>0 ? (rev/sp).toFixed(2)+'x' : '-';
+      const div = document.createElement('div'); div.className = 'creative-card card';
+      div.innerHTML = `<div class="creative-thumb"><div class="rank-badge">#${i+1}</div>${i===0 ? '<div class="top-badge">TOP</div>':''}🖼️</div><div class="card-title" style="margin: 8px 0 4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${ad.ad_name}">${ad.ad_name}</div><div class="card-subtitle"><div>ROAS: <span class="t-green mono">${roas}</span></div><div>CTR: <span class="mono">${parseFloat(ad.ctr||0).toFixed(2)}%</span></div><div>Gasto: <span class="mono">${toBRL(sp)}</span></div></div>`;
       cont.appendChild(div);
     });
   }
 
-  /* Charts Init & Render */
-  Chart.defaults.color = '#8896a8';
-  Chart.defaults.font.family = 'Geist, sans-serif';
-  Chart.defaults.borderColor = 'rgba(255,255,255,0.05)';
-
-  function initCharts() {
-    const mc = document.getElementById('mainChart').getContext('2d');
-    mainChartInst = new Chart(mc, {
-      type: 'line',
-      data: { labels: [], datasets: [] },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { grid: { display: false } },
-          y1: { type: 'linear', position: 'left', beginAtZero: true },
-          y2: { type: 'linear', position: 'right', beginAtZero: true, grid: { display: false } }
-        }
-      }
-    });
-
-    const rc = document.getElementById('roasChart').getContext('2d');
-    roasChartInst = new Chart(rc, {
-      type: 'bar',
-      data: { labels: [], datasets: [] },
-      options: {
-        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: { x: { beginAtZero: true } }
-      }
-    });
-
-    const oc = document.getElementById('objChart').getContext('2d');
-    objChartInst = new Chart(oc, {
-      type: 'doughnut',
-      data: { labels: ['Leads', 'Vendas', 'Awareness', 'Tráfego'], datasets: [{ data: [0,0,0,0], backgroundColor: ['#fbbf24', '#34d399', '#4f8ef7', '#a78bfa'], borderWidth:0 }]},
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        cutout: '68%', plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: {size:10} } } }
-      }
-    });
+  function initAllCharts() {
+    if (typeof Chart === 'undefined') { console.error("Chart.js failed to load."); return; }
+    const mc = document.getElementById('mainChart');
+    if(mc) window.chartInstances.main = new Chart(mc.getContext('2d'), { type: 'line', data: { labels: [], datasets: [] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y1: { type: 'linear', position: 'left', beginAtZero: true }, y2: { type: 'linear', position: 'right', beginAtZero: true, grid: { display: false } } } } });
+    const rc = document.getElementById('roasChart');
+    if(rc) window.chartInstances.roas = new Chart(rc.getContext('2d'), { type: 'bar', data: { labels: [], datasets: [] }, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true } } } });
+    const oc = document.getElementById('objChart');
+    if(oc) window.chartInstances.obj = new Chart(oc.getContext('2d'), { type: 'doughnut', data: { labels: ['Leads', 'Vendas', 'Awareness', 'Tráfego'], datasets: [{ data: [1,1,1,1], backgroundColor: ['#fbbf24', '#34d399', '#4f8ef7', '#a78bfa'], borderWidth:0 }]}, options: { responsive: true, maintainAspectRatio: false, cutout: '68%', plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: {size:10} } } } } });
   }
 
   function renderMainChart(data) {
-    if(!data) return;
-    const labels = []; const spends = []; const leads = [];
-    data.forEach(d => {
-      labels.push(d.date_start.substring(5)); // just MM-DD
-      spends.push(parseFloat(d.spend||0));
-      leads.push(getActionValue(d.actions, ['lead']));
-    });
-    
-    mainChartInst.data = {
-      labels: labels,
-      datasets: [
-        { label: 'Investimento (R$)', data: spends, yAxisID: 'y1', type: 'bar', backgroundColor: '#4f8ef7', borderRadius: 4, barPercentage: 0.6 },
-        { label: 'Leads', data: leads, yAxisID: 'y2', type: 'line', borderColor: '#fbbf24', borderWidth: 3, tension: 0.3, pointBackgroundColor: '#fbbf24' }
-      ]
-    };
-    mainChartInst.update();
-    
-    // update objChart randomly based on total spend for visual if real obj breakdown lacks data simply by standard acts
+    if(!data || !window.chartInstances.main) return;
+    const labels = [], spends = [], leads = [];
+    data.forEach(d => { labels.push(d.date_start.substring(5)); spends.push(parseFloat(d.spend||0)); leads.push(getActionValue(d.actions, ['lead', 'onsite_conversion.lead_grouped'])); });
+    window.chartInstances.main.data = { labels: labels, datasets: [{ label: 'Investimento (R$)', data: spends, yAxisID: 'y1', type: 'bar', backgroundColor: '#4f8ef7', borderRadius: 4, barPercentage: 0.6 }, { label: 'Leads', data: leads, yAxisID: 'y2', type: 'line', borderColor: '#fbbf24', borderWidth: 3, tension: 0.3, pointBackgroundColor: '#fbbf24' }] };
+    window.chartInstances.main.update();
     const totSp = spends.reduce((a,b)=>a+b,0);
-    objChartInst.data.datasets[0].data = [totSp*0.5, totSp*0.2, totSp*0.1, totSp*0.2];
-    objChartInst.update();
+    if(window.chartInstances.obj) { window.chartInstances.obj.data.datasets[0].data = [totSp*0.5, totSp*0.2, totSp*0.1, totSp*0.2]; window.chartInstances.obj.update(); }
   }
 
   function renderRoasChart(data) {
-    if(!data) return;
-    const labels = []; const roasData = [];
-    data.forEach(d => {
-      labels.push(d.campaign_name.substring(0,25) + (d.campaign_name.length>25?'...':''));
-      const rev = getActionValue(d.action_values, ['purchase']);
-      const sp = parseFloat(d.spend||0);
-      roasData.push(rev>0 && sp>0 ? (rev/sp).toFixed(2) : 0);
-    });
-    const cores = ['#34d399', '#4f8ef7', '#a78bfa', '#fbbf24', '#f87171'];
-    roasChartInst.data = {
-      labels: labels,
-      datasets: [{ data: roasData, backgroundColor: cores, borderRadius: 4 }]
-    };
-    roasChartInst.update();
+    if(!data || !window.chartInstances.roas) return;
+    const labels = [], roasData = [];
+    data.forEach(d => { labels.push(d.campaign_name.substring(0,25) + (d.campaign_name.length>25?'...':'')); const rev = getActionValue(d.action_values, ['purchase', 'omni_purchase']), sp = parseFloat(d.spend||0); roasData.push(rev>0 && sp>0 ? (rev/sp).toFixed(2) : 0); });
+    window.chartInstances.roas.data = { labels: labels, datasets: [{ data: roasData, backgroundColor: ['#34d399', '#4f8ef7', '#a78bfa', '#fbbf24', '#f87171'], borderRadius: 4 }] };
+    window.chartInstances.roas.update();
   }
 
   function renderMockCopies() {
-    // API logic for creative text requires adcreatives matching, mocking as requested
-    const cont = document.getElementById('copiesRow');
-    cont.innerHTML = `
-      <div class="copy-item">
-        <div class="label-caps" style="color:var(--accent); margin-bottom:8px;">Melhor Texto</div>
-        <div class="copy-text">"Cansado de agências que não entregam resultado? Descubra o método Vallor..."</div>
-        <div class="flex-between mono" style="font-size:11px; margin-top:12px;"><span>Conv. 4.2%</span> <span class="t-green">ROAS 3.5x</span></div>
-      </div>
-      <div class="copy-item">
-        <div class="label-caps" style="color:var(--orange); margin-bottom:8px;">Melhor Head/Desc</div>
-        <div class="copy-text">"Clique e receba uma auditoria gratuita da sua conta."</div>
-        <div class="flex-between mono" style="font-size:11px; margin-top:12px;"><span>CTR 2.8%</span> <span class="t-green">Spnd R$5k</span></div>
-      </div>
-      <div class="copy-item">
-        <div class="label-caps" style="color:var(--purple); margin-bottom:8px;">Melhor CTA</div>
-        <div class="card-title" style="margin-top:16px;">SAIBA MAIS</div>
-        <div class="flex-between mono" style="font-size:11px; margin-top:24px;"><span>Cliques: 1,402</span></div>
-      </div>
-    `;
+    const cont = document.getElementById('copiesRow'); if(!cont) return;
+    cont.innerHTML = `<div class="copy-item"><div class="label-caps" style="color:var(--accent); margin-bottom:8px;">Melhor Texto</div><div class="copy-text">"Cansado de agências que não entregam resultado? Descubra o método Vallor..."</div><div class="flex-between mono" style="font-size:11px; margin-top:12px;"><span>Conv. 4.2%</span> <span class="t-green">ROAS 3.5x</span></div></div><div class="copy-item"><div class="label-caps" style="color:var(--orange); margin-bottom:8px;">Melhor Head/Desc</div><div class="copy-text">"Clique e receba uma auditoria gratuita da sua conta."</div><div class="flex-between mono" style="font-size:11px; margin-top:12px;"><span>CTR 2.8%</span> <span class="t-green">Spnd R$5k</span></div></div><div class="copy-item"><div class="label-caps" style="color:var(--purple); margin-bottom:8px;">Melhor CTA</div><div class="card-title" style="margin-top:16px;">SAIBA MAIS</div><div class="flex-between mono" style="font-size:11px; margin-top:24px;"><span>Cliques: 1,402</span></div></div>`;
   }
 
   function buildMultiBmTable() {
-    const tbody = document.querySelector('#multiBmTable tbody');
+    const tbody = document.querySelector('#multiBmTable tbody'); if(!tbody) return;
     tbody.innerHTML = '';
-    
-    allAccounts.forEach(acc => {
-      const stMap = {1:'ATIVO', 2:'PAUSADO', 3:'REMOVIDO', 101:'FECHADO'};
-      const stLabel = stMap[acc.account_status] || acc.account_status;
-      let stClass = 'status-chip';
-      if(acc.account_status !== 1) { stClass = 'status-chip t-red'; }
-      
-      const bal = acc.balance ? toBRL((parseFloat(acc.balance)/100)) : 'R$ 0';
-      
+    window.allAccounts.forEach(acc => {
+      const stMap = {1:'ATIVO', 2:'PAUSADO', 3:'REMOVIDO', 101:'FECHADO'}, stLabel = stMap[acc.account_status] || acc.account_status;
       const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>
-          <div class="card-title">${acc.name}</div>
-          <div class="mono" style="font-size:10px; color:var(--text3);">${acc.id}</div>
-        </td>
-        <td><span class="${stClass}">${stLabel}</span></td>
-        <td class="mono">--</td>
-        <td class="mono">--</td>
-        <td class="mono">--</td>
-        <td class="mono">${bal}</td>
-        <td><button class="btn btn-ghost" style="padding: 4px 8px; font-size:11px;" onclick="selectRealClient('${acc.id}', '${acc.name}')">Ver</button></td>
-      `;
+      tr.innerHTML = `<td><div class="card-title">${acc.name}</div><div class="mono" style="font-size:10px; color:var(--text3);">${acc.id}</div></td><td><span class="status-chip ${acc.account_status!==1?'t-red':''}">${stLabel}</span></td><td class="mono">--</td><td class="mono">--</td><td class="mono">--</td><td class="mono">${acc.balance ? toBRL((parseFloat(acc.balance)/100)) : 'R$ 0'}</td><td><button class="btn btn-ghost" style="padding: 4px 8px; font-size:11px;" onclick="selectRealClient('${acc.id}', '${acc.name}')">Ver</button></td>`;
       tbody.appendChild(tr);
     });
   }
