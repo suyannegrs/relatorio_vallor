@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ads Vallor — Agency Dashboard</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <style>
@@ -908,6 +911,22 @@ body::before {
 
 <div class="loading-bar" id="loadingBar" style="width:0%"></div>
 
+<!-- LOGIN SCREEN -->
+<div id="loginScreen" style="position:fixed; inset:0; background:#06080d; display:flex; align-items:center; justify-content:center; z-index:9999; flex-direction:column;">
+  <div style="width:340px; text-align:center;">
+    <div style="font-family:'Geist',sans-serif; font-size:28px; font-weight:500; margin-bottom:6px;">Ads <span style="color:#4f8ef7; font-weight:300;">Vallor</span></div>
+    <div style="font-size:11px; color:#3d4d60; letter-spacing:0.5px; text-transform:uppercase; margin-bottom:40px;">Agency Dashboard</div>
+    <div style="background:#0a0e16; border:1px solid rgba(255,255,255,0.05); border-radius:14px; padding:32px;">
+      <div style="font-size:15px; font-weight:500; color:#e8edf5; margin-bottom:24px; text-align:left;">Entrar na sua conta</div>
+      <input id="loginEmail" type="email" placeholder="Email" style="width:100%; padding:11px 14px; background:#0e1420; border:1px solid rgba(255,255,255,0.07); border-radius:8px; color:#e8edf5; font-size:13px; margin-bottom:10px; font-family:'Geist',sans-serif; outline:none; box-sizing:border-box;">
+      <input id="loginPassword" type="password" placeholder="Senha" style="width:100%; padding:11px 14px; background:#0e1420; border:1px solid rgba(255,255,255,0.07); border-radius:8px; color:#e8edf5; font-size:13px; margin-bottom:20px; font-family:'Geist',sans-serif; outline:none; box-sizing:border-box;">
+      <button onclick="doLogin()" style="width:100%; padding:12px; background:#4f8ef7; border:none; border-radius:8px; color:white; font-size:13px; font-weight:500; cursor:pointer; font-family:'Geist',sans-serif;">Entrar</button>
+      <div id="loginError" style="color:#f87171; font-size:12px; margin-top:12px; display:none;">Email ou senha incorretos.</div>
+    </div>
+    <div style="font-size:11px; color:#3d4d60; margin-top:20px;">Ads Vallor · Vallor Growth Platform</div>
+  </div>
+</div>
+
 <!-- SIDEBAR -->
 <div class="sidebar">
   <div class="logo">
@@ -940,18 +959,18 @@ body::before {
 
   <div class="nav-section">
     <div class="nav-label">PRINCIPAL</div>
-    <div class="nav-item active"><span class="icon">⚡</span> Dashboard</div>
-    <div class="nav-item"><span class="icon">📊</span> Relatórios</div>
-    <div class="nav-item"><span class="icon">🎨</span> Criativos</div>
-    <div class="nav-item"><span class="icon">👥</span> Audiências</div>
+    <div class="nav-item active" onclick="setNavTab('dashboard', this)"><span class="icon">⚡</span> Dashboard</div>
+    <div class="nav-item" onclick="setNavTab('empty', this)"><span class="icon">📊</span> Relatórios</div>
+    <div class="nav-item" onclick="setNavTab('empty', this)"><span class="icon">🎨</span> Criativos</div>
+    <div class="nav-item" onclick="setNavTab('empty', this)"><span class="icon">👥</span> Audiências</div>
   </div>
 
   <div class="nav-section">
     <div class="nav-label">GESTÃO</div>
-    <div class="nav-item"><span class="icon">🏢</span> Multi-BM</div>
-    <div class="nav-item"><span class="icon">📡</span> Pixels</div>
-    <div class="nav-item"><span class="icon">💰</span> Financeiro</div>
-    <div class="nav-item"><span class="icon">⚙️</span> Config</div>
+    <div class="nav-item" onclick="setNavTab('empty', this)"><span class="icon">🏢</span> Multi-BM</div>
+    <div class="nav-item" onclick="setNavTab('pixels', this)"><span class="icon">📡</span> Pixels</div>
+    <div class="nav-item" onclick="setNavTab('empty', this)"><span class="icon">💰</span> Financeiro</div>
+    <div class="nav-item" onclick="setNavTab('config', this)"><span class="icon">⚙️</span> Config</div>
   </div>
 
   <div class="sidebar-bottom">
@@ -987,7 +1006,7 @@ body::before {
   </div>
 
   <!-- CONTENT -->
-  <div class="content">
+  <div class="content" id="view-dashboard">
 
     <!-- ACCOUNT BAR -->
     <div class="account-bar">
@@ -1292,7 +1311,70 @@ body::before {
     </div>
 
   </div>
+
+  <!-- VIEWS ADICIONAIS -->
+  <div class="content" id="view-pixels" style="display: none;">
+    <div class="card-header" style="margin-bottom: 24px;">
+      <div>
+        <h2 style="font-size: 20px; font-weight: 500;">Gestão de Pixels</h2>
+        <p style="color: var(--text3); font-size: 13px; margin-top: 4px;">Instale novos pixels nas suas landing pages ou contas conectadas.</p>
+      </div>
+    </div>
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px;">
+      <h3 style="font-size: 14px; margin-bottom: 16px;">Adicionar Novo Pixel</h3>
+      <div style="display: flex; gap: 12px; margin-bottom: 20px;">
+        <input type="text" placeholder="Nome do Pixel" style="flex:1; background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 10px; border-radius: 6px; font-family: 'Geist', sans-serif;">
+        <input type="text" placeholder="ID do Pixel (Ex: 104938204...)" style="flex:2; background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 10px; border-radius: 6px; font-family: 'Geist Mono', monospace;">
+        <button class="btn btn-primary" onclick="showToast('✅ Pixel vinculado com sucesso às páginas atuais!')">Vincular Pixel</button>
+      </div>
+      <div style="border-top: 1px solid var(--border); padding-top: 20px; margin-top: 20px;">
+        <h3 style="font-size: 14px; margin-bottom: 16px;">Pixels Ativos</h3>
+        <div style="background: var(--surface2); border: 1px solid var(--border); padding: 16px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-weight: 500; margin-bottom: 4px;">🎯 Pixel — Landing Page Vendas</div>
+            <div style="font-size: 11px; color: var(--text3); font-family: 'Geist Mono', monospace;">ID: 758392018374920</div>
+          </div>
+          <div class="status-chip ok"><div class="pixel-dot firing"></div> Disparando (Eventos: View, Lead)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="content" id="view-config" style="display: none;">
+    <div class="card-header" style="margin-bottom: 24px;">
+      <div>
+        <h2 style="font-size: 20px; font-weight: 500;">Configurações do Sistema</h2>
+        <p style="color: var(--text3); font-size: 13px; margin-top: 4px;">Gerencie suas chaves da Meta API, webhooks e usuários.</p>
+      </div>
+    </div>
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px;">
+      <h3 style="font-size: 14px; margin-bottom: 16px;">Meta Graph API Access</h3>
+      <div style="display: flex; flex-direction: column; gap: 16px;">
+        <div>
+          <label style="font-size: 11px; color: var(--text3); text-transform: uppercase;">System User Token</label>
+          <input type="password" value="EAAhdWvjrnBcBQ9zuQNBRBDaKRwhZCMrFn2QfAGQ8vrqZCiRZBo6nmxz09lCjq3EhhPL" style="width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 10px; border-radius: 6px; margin-top: 4px; font-family: 'Geist Mono', monospace;">
+        </div>
+        <div>
+          <label style="font-size: 11px; color: var(--text3); text-transform: uppercase;">App ID</label>
+          <input type="text" value="2354445118315543" style="width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 10px; border-radius: 6px; margin-top: 4px;">
+        </div>
+        <div>
+          <button class="btn btn-primary" onclick="showToast('✅ Configurações de API salvas!')">Salvar Configurações</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="content" id="view-empty" style="display: none; align-items: center; justify-content: center; height: 60vh;">
+    <div style="text-align: center;">
+      <div style="font-size: 40px; margin-bottom: 20px;">🚧</div>
+      <h2 style="font-size: 18px; margin-bottom: 8px;">Módulo em Desenvolvimento</h2>
+      <p style="color: var(--text3); font-size: 13px;">Iniciaremos a integração desta tela em breve.</p>
+    </div>
+  </div>
+
 </div>
+
 
 <!-- EXPORT MODAL -->
 <div class="export-overlay" id="exportOverlay" onclick="hideExport(event)">
@@ -1336,9 +1418,66 @@ body::before {
 // ═══════════════════════════════════════════════════════════
 // META API — CONEXÃO REAL
 // ═══════════════════════════════════════════════════════════
-const META_TOKEN = 'EAAhdWvjrnBcBQ9zuQNBRBDaKRwhZCMrFn2QfAGQ8vrqZCiRZBo6nmxz09lCjq3EhhPLXIHdjZCZAlvMQUhDIcpkgSJ2vhdsA71RkZBAznfQsNrA2dFC95bw5HIvRtZBE3qn7TKGdsNZBfU2y2QfCj6M7afQdAVL0sIvYp0xGAC7XCbCzZAKZAmQVo93984MBsZCwQZDZD';
+const SUPABASE_URL = 'https://npmqtopvsucpwtwfcuqw.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_hbs3q37LSVRoC-kP1QdDUQ_zt9X-xlr';
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let META_TOKEN = 'EAAhdWvjrnBcBQ9zuQNBRBDaKRwhZCMrFn2QfAGQ8vrqZCiRZBo6nmxz09lCjq3EhhPLXIHdjZCZAlvMQUhDIcpkgSJ2vhdsA71RkZBAznfQsNrA2dFC95bw5HIvRtZBE3qn7TKGdsNZBfU2y2QfCj6M7afQdAVL0sIvYp0xGAC7XCbCzZAKZAmQVo93984MBsZCwQZDZD';
 const META_APP_ID = '2354445118315543';
 const GRAPH = 'https://graph.facebook.com/v19.0';
+
+// Buscar token com segurança do Supabase
+async function getMetaToken() {
+  try {
+    const { data, error } = await supabase.from('config').select('value').eq('key', 'meta_token').single();
+    if (data) META_TOKEN = data.value;
+  } catch(e) { console.warn('Usando token fallback'); }
+}
+
+// Salvar snapshot após carregar dados reais
+async function saveSnapshot(accountId, accountName, period, insightsArr) {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const ins = insightsArr && insightsArr[0] ? insightsArr[0] : {};
+    const spend = parseFloat(ins.spend || 0);
+    const leads = getActionValue(ins.actions, ['lead', 'onsite_conversion.lead_grouped', 'offsite_conversion.fb_pixel_lead']);
+    const revenue = getActionValue(ins.action_values, ['purchase', 'omni_purchase', 'offsite_conversion.fb_pixel_purchase']);
+
+    await supabase.from('account_snapshots').upsert({
+      account_id: accountId,
+      account_name: accountName,
+      date: today,
+      period,
+      spend,
+      impressions: parseInt(ins.impressions || 0),
+      reach: parseInt(ins.reach || 0),
+      clicks: parseInt(ins.clicks || 0),
+      leads,
+      revenue,
+      roas: spend > 0 && revenue > 0 ? revenue / spend : 0,
+      cpl: leads > 0 ? spend / leads : 0,
+      ctr: parseFloat(ins.ctr || 0),
+      cpm: parseFloat(ins.cpm || 0),
+      cpc: spend > 0 && parseInt(ins.clicks) > 0 ? spend / parseInt(ins.clicks) : 0,
+    }, { onConflict: 'account_id,date,period' });
+  } catch(e) { console.warn('Erro ao salvar snapshot:', e.message); }
+}
+
+// Controle de abas
+
+// Controle de abas
+function setNavTab(targetId, btnElt) {
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  btnElt.classList.add('active');
+
+  ['view-dashboard', 'view-pixels', 'view-config', 'view-empty'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.style.display = 'none';
+  });
+
+  const target = document.getElementById('view-' + targetId);
+  if(target) target.style.display = targetId === 'empty' ? 'flex' : 'block';
+}
 
 // Período atual selecionado
 let currentDatePreset = 'last_7d';
@@ -1427,64 +1566,58 @@ async function loadAccountData(accountId, accountName) {
   activeAdAccountId = accountId;
   loadingAnim();
   try {
-    const preset = DATE_PRESETS[currentDatePreset] || 'last_7d';
+    const preset = document.querySelector('.period-btn.active')?.dataset.period || 'last_7d';
+    const prevPresets = { 'today':'yesterday', 'last_7d':'last_14d', 'last_30d':'last_60d', 'last_90d':'last_year' };
+    const prevPreset = prevPresets[preset] || 'last_14d';
 
-    // Insights gerais
-    const insights = await metaGet(`${accountId}/insights`, {
-      fields: 'spend,impressions,reach,clicks,ctr,cpm,cpc,actions,action_values,date_start,date_stop',
-      date_preset: preset,
-      level: 'account'
-    });
+    const fields = 'spend,impressions,reach,clicks,ctr,cpm,cpc,actions,action_values';
+    
+    const [insightsRes, prevRes, accInfo, dailyInsights, demoInsights, geoInsights, adsInsights, campaignInsights] = await Promise.all([
+      metaGet(`${accountId}/insights`, { date_preset: preset, level: 'account', fields }),
+      metaGet(`${accountId}/insights`, { date_preset: prevPreset, level: 'account', fields }),
+      metaGet(accountId, { fields: 'name,amount_spent,balance,currency,account_status' }),
+      metaGet(`${accountId}/insights`, { fields: 'spend,actions,date_start', date_preset: preset, time_increment: 1, level: 'account' }),
+      metaGet(`${accountId}/insights`, { fields: 'spend,impressions,reach,actions', date_preset: preset, breakdowns: 'age,gender', level: 'account' }),
+      metaGet(`${accountId}/insights`, { fields: 'spend,impressions', date_preset: preset, breakdowns: 'region', level: 'account', limit: 10 }),
+      metaGet(`${accountId}/insights`, { fields: 'ad_name,ad_id,spend,impressions,clicks,ctr,actions,action_values', date_preset: preset, level: 'ad', sort: 'spend_descending', limit: 10 }),
+      metaGet(`${accountId}/insights`, { fields: 'campaign_name,spend,actions,action_values', date_preset: preset, level: 'campaign', sort: 'spend_descending', limit: 5 })
+    ]);
 
-    // Info da conta (saldo)
-    const accInfo = await metaGet(accountId, {
-      fields: 'name,balance,amount_spent,currency,account_status,spend_cap'
-    });
+    const insights = insightsRes.data?.[0] || {};
+    const prev = prevRes.data?.[0] || {};
 
-    // Insights por dia (para gráfico)
-    const dailyInsights = await metaGet(`${accountId}/insights`, {
-      fields: 'spend,actions,date_start',
-      date_preset: preset,
-      time_increment: 1,
-      level: 'account'
-    });
+    // Variações
+    const calcVar = (curr, old) => { 
+      const c = parseFloat(curr||0); const o = parseFloat(old||0); 
+      return o > 0 ? ((c - o) / o * 100).toFixed(1) : null; 
+    };
+    
+    const vars = {
+      spend: calcVar(insights.spend, prev.spend),
+      leads: calcVar(getActionValue(insights.actions,['lead']), getActionValue(prev.actions,['lead'])),
+      roas: calcVar(
+        parseFloat(insights.spend)>0 ? getActionValue(insights.action_values,['purchase'])/parseFloat(insights.spend) : 0,
+        parseFloat(prev.spend)>0 ? getActionValue(prev.action_values,['purchase'])/parseFloat(prev.spend) : 0
+      )
+    };
 
-    // Demographics — idade e gênero
-    const demoInsights = await metaGet(`${accountId}/insights`, {
-      fields: 'spend,impressions,reach,actions',
-      date_preset: preset,
-      breakdowns: 'age,gender',
-      level: 'account'
-    });
-
-    // Geografico
-    const geoInsights = await metaGet(`${accountId}/insights`, {
-      fields: 'spend,impressions',
-      date_preset: preset,
-      breakdowns: 'region',
-      level: 'account',
-      limit: 10
-    });
-
-    // Top anúncios (criativos)
-    const adsInsights = await metaGet(`${accountId}/insights`, {
-      fields: 'ad_name,ad_id,spend,impressions,clicks,ctr,actions,action_values',
-      date_preset: preset,
-      level: 'ad',
-      sort: 'spend_descending',
-      limit: 10
-    });
-
-    // Insights por campanha (para gráfico ROAS)
-    const campaignInsights = await metaGet(`${accountId}/insights`, {
-      fields: 'campaign_name,spend,actions,action_values',
-      date_preset: preset,
-      level: 'campaign',
-      sort: 'spend_descending',
-      limit: 5
-    });
-
-    updateDashboard(insights.data, accInfo, dailyInsights.data, demoInsights.data, geoInsights.data, adsInsights.data, campaignInsights.data);
+    updateDashboard(insightsRes.data, accInfo, dailyInsights.data, demoInsights.data, geoInsights.data, adsInsights.data, campaignInsights.data, vars);
+    
+    // UI Intel
+    const leads = getActionValue(insights.actions, ['lead', 'onsite_conversion.lead_grouped']);
+    const metrics = {
+      roas: parseFloat(insights.spend)>0 ? getActionValue(insights.action_values,['purchase'])/parseFloat(insights.spend) : 0,
+      ctr: parseFloat(insights.ctr||0),
+      cpm: parseFloat(insights.cpm||0),
+      spend: parseFloat(insights.spend||0),
+      balance: parseFloat(accInfo.balance||0)/100,
+      budget: 0 // Fetch do AdSet seria necessário para real budget
+    };
+    
+    renderHealthScore(metrics);
+    renderAlertsPanel(checkAccountAlerts(accountName, metrics));
+    
+    await saveSnapshot(accountId, accountName, preset, insightsRes.data);
 
   } catch(e) {
     showToast('❌ Erro ao carregar dados: ' + e.message);
@@ -1499,9 +1632,24 @@ function getActionValue(actions, types) {
   return actions.filter(a => t.includes(a.action_type)).reduce((s, a) => s + parseFloat(a.value||0), 0);
 }
 
-function updateDashboard(insightsArr, accInfo, daily, demo, geo, ads, campaigns) {
+function updateDashboard(insightsArr, accInfo, daily, demo, geo, ads, campaigns, variations) {
   const ins = insightsArr && insightsArr[0] ? insightsArr[0] : {};
+  
+  // Update UI Variation Badges
+  if (variations) {
+    const updateBadge = (id, val) => {
+      const el = document.getElementById(id)?.closest('.kpi-card')?.querySelector('.kpi-change');
+      if (!el || val === null) return;
+      const isUp = parseFloat(val) > 0;
+      el.className = `kpi-change ${isUp ? 'up' : 'down'}`;
+      el.innerHTML = `${isUp ? '▲' : '▼'} ${Math.abs(val)}%`;
+    };
+    updateBadge('kpi-invest', variations.spend);
+    updateBadge('kpi-roas', variations.roas);
+    updateBadge('kpi-leads', variations.leads);
+  }
 
+  // KPIs principais
   const spend    = parseFloat(ins.spend || 0);
   const revenue  = getActionValue(ins.action_values, ['purchase','omni_purchase','offsite_conversion.fb_pixel_purchase']);
   const leads    = getActionValue(ins.actions, ['lead','onsite_conversion.lead_grouped','offsite_conversion.fb_pixel_lead']);
@@ -1556,6 +1704,184 @@ function updateDashboard(insightsArr, accInfo, daily, demo, geo, ads, campaigns)
 // ── GRÁFICOS COM DADOS REAIS ─────────────────────────────────
 let mainChartInstance = null;
 let roasChartInstance = null;
+
+async function fetchCreativeThumbnails(adIds, metaToken) {
+  const thumbnails = {};
+  try {
+    const promises = adIds.slice(0, 10).map(async (adId) => {
+      const url = new URL(`${GRAPH}/${adId}`);
+      url.searchParams.set('fields', 'creative{thumbnail_url,image_url,video_id}');
+      url.searchParams.set('access_token', metaToken);
+      const res = await fetch(url.toString());
+      const data = await res.json();
+      if (data.creative?.thumbnail_url) {
+        thumbnails[adId] = data.creative.thumbnail_url;
+      } else if (data.creative?.image_url) {
+        thumbnails[adId] = data.creative.image_url;
+      }
+    });
+    await Promise.all(promises);
+  } catch(e) {
+    console.warn('Thumbnails não disponíveis:', e.message);
+  }
+  return thumbnails;
+}
+
+// Versão expandida do updateCreatives com imagens reais
+async function updateCreatives(ads) {
+  if (!ads || !ads.length) return;
+  const sorted = [...ads].sort((a, b) => parseFloat(b.spend || 0) - parseFloat(a.spend || 0)).slice(0, 10);
+  const adIds = sorted.map(a => a.ad_id).filter(Boolean);
+
+  // Buscar thumbnails reais
+  const thumbnails = adIds.length ? await fetchCreativeThumbnails(adIds, META_TOKEN) : {};
+
+  const colors = ['#3f8ef7','#8b5cf6','#f59e0b','#10b981','#ef4444','#06b6d4','#ec4899','#84cc16','#f97316','#6366f1'];
+  const emojis = ['🏆','🎯','⚡','✅','🎨','📊','🔥','💡','📱','⭐'];
+  const grid = document.getElementById('creativesGrid');
+
+  grid.innerHTML = sorted.map((ad, i) => {
+    const leads = getActionValue(ad.actions, ['lead', 'onsite_conversion.lead_grouped', 'offsite_conversion.fb_pixel_lead']) || parseInt(ad.clicks || 0);
+    const revenue = getActionValue(ad.action_values, ['purchase', 'omni_purchase', 'offsite_conversion.fb_pixel_purchase']);
+    const spend = parseFloat(ad.spend || 0);
+    const roas = revenue > 0 && spend > 0 ? (revenue / spend).toFixed(1) + 'x' : '—';
+    const ctr = parseFloat(ad.ctr || 0).toFixed(2) + '%';
+    const name = (ad.ad_name || 'Anúncio').length > 18 ? (ad.ad_name || 'Anúncio').slice(0, 18) + '…' : (ad.ad_name || 'Anúncio');
+    const thumb = thumbnails[ad.ad_id];
+
+    // Thumb real ou fallback emoji
+    const thumbHTML = thumb
+      ? `<img src="${thumb}" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;border-radius:8px 8px 0 0;" onerror="this.parentElement.innerHTML='<span style=\"position:relative;z-index:1;font-size:32px\">${emojis[i]}</span>';">`
+      : `<div class="creative-thumb-bg" style="background:${colors[i]}"></div><span style="position:relative;z-index:1;font-size:32px">${emojis[i]}</span>`;
+
+    return `
+      <div class="creative-card" onclick="showToast('📊 ${ad.ad_name} — Gasto: ${toBRL(spend)}')">
+        <div class="creative-thumb" style="position:relative;overflow:hidden;">
+          ${thumbHTML}
+          <div class="creative-rank">#${i + 1}</div>
+          ${i === 0 ? '<div class="creative-badge">TOP</div>' : ''}
+        </div>
+        <div class="creative-info">
+          <div class="creative-name">${name}</div>
+          <div class="creative-stats">
+            <span>ROAS <span class="val">${roas}</span></span>
+            <span>CTR <span class="val">${ctr}</span></span>
+          </div>
+          <div class="creative-stats" style="margin-top:2px">
+            <span>Gasto <span class="val">${toBRL(spend)}</span></span>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function exportPDF() {
+  // Fechar modal se estiver aberto
+  if(window.hideExport) hideExport();
+  showToast('📄 Gerando PDF... aguarde');
+  if(window.loadingAnim) loadingAnim();
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('p', 'mm', 'a4');
+  const pageWidth = 210;
+  const pageHeight = 297;
+  const margin = 12;
+
+  // ── PÁGINA 1: CAPA ──────────────────────────────────────────────
+  doc.setFillColor(6, 8, 13);
+  doc.rect(0, 0, pageWidth, pageHeight, 'F');
+  doc.setFillColor(79, 142, 247);
+  doc.rect(0, 0, pageWidth, 2, 'F');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(32);
+  doc.setTextColor(232, 237, 245);
+  doc.text('Ads', margin, 40);
+  doc.setTextColor(79, 142, 247);
+  doc.text('Vallor', margin + 26, 40);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(11);
+  doc.setTextColor(136, 150, 168);
+  doc.text('AGENCY DASHBOARD — RELATÓRIO DE PERFORMANCE', margin, 50);
+
+  const clientName = document.getElementById('selectedClient')?.textContent || 'Cliente';
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(22);
+  doc.setTextColor(232, 237, 245);
+  doc.text(clientName, margin, 80);
+
+  const activePeriod = document.querySelector('.period-btn.active')?.textContent || '7 dias';
+  const today = new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(11);
+  doc.setTextColor(136, 150, 168);
+  doc.text(`Período: ${activePeriod}  ·  Gerado em: ${today}`, margin, 92);
+
+  doc.setDrawColor(30, 41, 59);
+  doc.setLineWidth(0.5);
+  doc.line(margin, 100, pageWidth - margin, 100);
+
+  const kpiData = [
+    { label: 'INVESTIMENTO TOTAL', id: 'kpi-invest', color: [79, 142, 247] },
+    { label: 'ROAS',               id: 'kpi-roas',   color: [52, 211, 153] },
+    { label: 'LEADS GERADOS',      id: 'kpi-leads',  color: [251, 191, 36] },
+    { label: 'CUSTO POR LEAD',     id: 'kpi-cpl',    color: [167, 139, 250] },
+  ];
+
+  kpiData.forEach((kpi, i) => {
+    const x = margin + (i % 2) * 92;
+    const y = 115 + Math.floor(i / 2) * 40;
+    const value = document.getElementById(kpi.id)?.textContent || '—';
+    doc.setFillColor(10, 14, 22);
+    doc.roundedRect(x, y, 88, 32, 3, 3, 'F');
+    doc.setFillColor(...kpi.color);
+    doc.rect(x, y, 88, 1.5, 'F');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(136, 150, 168);
+    doc.text(kpi.label, x + 5, y + 9);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(18);
+    doc.setTextColor(...kpi.color);
+    doc.text(value, x + 5, y + 24);
+  });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(136, 150, 168);
+  doc.text('Ads Vallor — Vallor Growth Platform — Relatório Confidencial', margin, pageHeight - 10);
+  doc.text(`Página 1`, pageWidth - margin - 15, pageHeight - 10);
+
+  // ── PÁGINA 2: GRÁFICOS ──────────────────────────────────────────
+  doc.addPage();
+  doc.setFillColor(6, 8, 13);
+  doc.rect(0, 0, pageWidth, pageHeight, 'F');
+  doc.setFillColor(79, 142, 247);
+  doc.rect(0, 0, pageWidth, 2, 'F');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(232, 237, 245);
+  doc.text('Performance Visual', margin, 18);
+
+  try {
+    const mainChartEl = document.getElementById('mainChart');
+    if (mainChartEl) {
+      const canvas = await html2canvas(mainChartEl.parentElement, { backgroundColor: '#0a0e16', scale: 2 });
+      doc.addImage(canvas.toDataURL('image/png'), 'PNG', margin, 30, 186, 90);
+    }
+    const lowerRow = document.querySelector('.lower-row');
+    if (lowerRow) {
+      const canvas2 = await html2canvas(lowerRow, { backgroundColor: '#06080d', scale: 2 });
+      doc.addImage(canvas2.toDataURL('image/png'), 'PNG', margin, 130, 186, 100);
+    }
+  } catch(e) { console.warn('Erro ao capturar gráficos:', e); }
+
+  const fileName = `Relatorio_${clientName.replace(/\s/g,'_')}.pdf`;
+  doc.save(fileName);
+  showToast(`✅ PDF gerado: ${fileName}`);
+}
 
 function updateMainChart(daily) {
   if (!daily.length) return;

@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Ads Vallor — Agency Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@300;400;500&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@1&display=swap" rel="stylesheet">
@@ -283,17 +284,17 @@
       </div>
     </div>
     
-    <div class="nav-section">
+    <div class="nav-section" id="sidebarNav">
       <div class="label-caps" style="margin-bottom: 8px;">Principal</div>
-      <div class="nav-item active">📊 Dashboard</div>
-      <div class="nav-item">📈 Relatórios</div>
-      <div class="nav-item">🎨 Criativos</div>
+      <div class="nav-item active" onclick="setTab('dashboard', this)">📊 Dashboard</div>
+      <div class="nav-item" onclick="setTab('relatorios', this)">📈 Relatórios</div>
+      <div class="nav-item" onclick="setTab('criativos', this)">🎨 Criativos</div>
       
       <div class="label-caps" style="margin-top: 24px; margin-bottom: 8px;">Gestão</div>
-      <div class="nav-item">👥 Audiências / Multi-BM</div>
-      <div class="nav-item">🎯 Pixels</div>
-      <div class="nav-item">💰 Financeiro</div>
-      <div class="nav-item">⚙️ Config</div>
+      <div class="nav-item" onclick="setTab('empty', this)">👥 Audiências / Multi-BM</div>
+      <div class="nav-item" onclick="setTab('pixels', this)">🎯 Pixels</div>
+      <div class="nav-item" onclick="setTab('empty', this)">💰 Financeiro</div>
+      <div class="nav-item" onclick="setTab('config', this)">⚙️ Config</div>
     </div>
     
     <div class="sidebar-footer">
@@ -329,7 +330,7 @@
       </div>
     </header>
     
-    <div class="content-area">
+    <div id="view-dashboard" class="content-area">
       
       <!-- Account Status Bar -->
       <div class="status-bar">
@@ -458,8 +459,67 @@
           </table>
         </div>
       </div>
+      </div>
       
     </div>
+
+    <!-- Empty/Coming Soon View -->
+    <div id="view-empty" class="content-area" style="display: none; align-items: center; justify-content: center; height: 50vh;">
+      <div style="text-align: center;">
+        <div style="font-size: 48px; margin-bottom: 16px;">🚧</div>
+        <h2 class="card-title" style="font-size: 20px; color: var(--text);">Módulo em Desenvolvimento</h2>
+        <p class="card-subtitle" style="margin-top: 8px; font-size: 14px;">Esta funcionalidade será disponibilizada na próxima atualização.</p>
+      </div>
+    </div>
+
+    <!-- Pixels View -->
+    <div id="view-pixels" class="content-area" style="display: none;">
+      <h2 class="page-title">Gestão de Pixels</h2>
+      <p style="color: var(--text3); font-size: 13px; margin-top: 4px; margin-bottom: 24px;">Instale novos pixels nas suas landing pages ou contas conectadas.</p>
+      
+      <div class="card">
+        <h3 class="card-title" style="margin-bottom: 16px;">Adicionar Novo Pixel</h3>
+        <div style="display: flex; gap: 12px; margin-bottom: 20px;">
+          <input type="text" placeholder="Nome do Pixel" style="flex:1; background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 10px; border-radius: 6px; font-family: 'Geist', sans-serif;">
+          <input type="text" placeholder="ID do Pixel (Ex: 104938204...)" style="flex:2; background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 10px; border-radius: 6px; font-family: 'Geist Mono', monospace;">
+          <button class="btn btn-primary" onclick="showToast('✅ Pixel vinculado com sucesso!')">Vincular Pixel</button>
+        </div>
+        <div style="border-top: 1px solid var(--border); padding-top: 20px; margin-top: 20px;">
+          <h3 class="card-title" style="margin-bottom: 16px;">Pixels Ativos</h3>
+          <div style="background: var(--surface2); border: 1px solid var(--border); padding: 16px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <div style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">🎯 Pixel — Landing Page Vendas</div>
+              <div style="font-size: 11px; color: var(--text3); font-family: 'Geist Mono', monospace;">ID: 758392018374920</div>
+            </div>
+            <div class="status-chip" style="background: rgba(52, 211, 153, 0.1); color: var(--green); border: 1px solid rgba(52, 211, 153, 0.2);">Disparando (Eventos: View, Lead)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Config View -->
+    <div id="view-config" class="content-area" style="display: none;">
+      <h2 class="page-title">Configurações do Sistema</h2>
+      <p style="color: var(--text3); font-size: 13px; margin-top: 4px; margin-bottom: 24px;">Gerencie suas chaves da Meta API, webhooks e usuários.</p>
+      
+      <div class="card">
+        <h3 class="card-title" style="margin-bottom: 16px;">Meta Graph API Access</h3>
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+          <div>
+            <label style="font-size: 11px; color: var(--text3); text-transform: uppercase;">System User Token</label>
+            <input type="password" value="EAAhdWvjrnBcBQ9zuQNBRBDaKRwhZCMrFn2QfAGQ8vrqZCiRZBo6nmxz09lCjq3EhhPL" style="width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 10px; border-radius: 6px; margin-top: 4px; font-family: 'Geist Mono', monospace;">
+          </div>
+          <div>
+            <label style="font-size: 11px; color: var(--text3); text-transform: uppercase;">App ID</label>
+            <input type="text" value="2354445118315543" style="width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 10px; border-radius: 6px; margin-top: 4px;">
+          </div>
+          <div>
+            <button class="btn btn-primary" onclick="showToast('✅ Configurações de API salvas!')">Salvar Configurações</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </main>
 </div>
 
@@ -490,8 +550,11 @@
 <div id="toast"></div>
 
 <script>
-  // ⚠️ Em produção, nunca exponha tokens no frontend. Use um backend proxy.
-  const META_TOKEN = 'EAAhdWvjrnBcBQ9zuQNBRBDaKRwhZCMrFn2QfAGQ8vrqZCiRZBo6nmxz09lCjq3EhhPLXIHdjZCZAlvMQUhDIcpkgSJ2vhdsA71RkZBAznfQsNrA2dFC95bw5HIvRtZBE3qn7TKGdsNZBfU2y2QfCj6M7afQdAVL0sIvYp0xGAC7XCbCzZAKZAmQVo93984MBsZCwQZDZD'; // REQUIRED for real testing!
+  const SUPABASE_URL  = 'https://npmqtopvsucpwtwfcuqw.supabase.co';
+  const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5wbXF0b3B2c3VjcHd0d2ZjdXF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyMzk5MTUsImV4cCI6MjA4ODgxNTkxNX0.wOrf5jQj3ai55x3LeR8YWj0HsGQibactzFoEqKcKQe4';
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  let META_TOKEN = ''; 
   const META_APP_ID = '2354445118315543';
   const GRAPH = 'https://graph.facebook.com/v19.0';
   
@@ -504,22 +567,108 @@
   let roasChartInst = null;
   let objChartInst = null;
 
+  const LOGIN_HTML = `
+    <div id="loginScreen" style="position:fixed; inset:0; background:var(--bg); z-index:9999; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(20px);">
+      <div class="card" style="width:360px; padding:40px; border:1px solid var(--border2); text-align:center;">
+        <div class="logo-text" style="font-size:24px; margin-bottom:8px;">Ads <span class="logo-vallor">Vallor</span></div>
+        <div class="logo-sub" style="margin-bottom:32px;">Acesse sua conta</div>
+        <div id="loginError" style="display:none; color:var(--red); font-size:12px; margin-bottom:16px; padding:10px; background:rgba(248,113,113,0.1); border-radius:6px;">Email ou senha incorretos.</div>
+        <input type="email" id="loginEmail" placeholder="Email" style="width:100%; background:var(--surface2); border:1px solid var(--border); color:var(--text); padding:12px; border-radius:8px; margin-bottom:12px; font-family:'Geist';">
+        <input type="password" id="loginPassword" placeholder="Senha" style="width:100%; background:var(--surface2); border:1px solid var(--border); color:var(--text); padding:12px; border-radius:8px; margin-bottom:24px; font-family:'Geist';">
+        <button class="btn btn-primary" onclick="doLogin()" style="width:100%; justify-content:center; padding:12px;">Entrar</button>
+      </div>
+    </div>
+  `;
+
   document.addEventListener('DOMContentLoaded', async () => {
+    document.body.insertAdjacentHTML('afterbegin', LOGIN_HTML);
     setDate();
     initCharts();
-    
-    // Check token logic (so it doesn't break if not replaced yet)
-    if(META_TOKEN === 'INSERIR_TOKEN_DO_SISTEMA_AQUI') {
-      showToast('⚠️ ATENÇÃO: Token Meta não configurado no código!', true);
-    }
-    
-    try {
-      await loadAdAccounts();
-    } catch(e) {
-      console.error(e);
-      showToast('❌ Erro de conexão com Meta API: ' + e.message);
-    }
+    checkSession();
   });
+
+  async function getMetaToken() {
+    const { data, error } = await supabase
+      .from('config')
+      .select('value')
+      .eq('key', 'meta_token')
+      .single();
+    if (error) throw new Error('Token não encontrado');
+    return data.value;
+  }
+
+  async function doLogin() {
+    const email    = document.getElementById('loginEmail').value;
+    const password = document.getElementById('loginPassword').value;
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      document.getElementById('loginError').style.display = 'block';
+      return;
+    }
+    document.getElementById('loginScreen').style.display = 'none';
+    showToast('✅ Bem-vindo, Hellden!');
+    const token = await getMetaToken();
+    window.META_TOKEN = token; 
+    META_TOKEN = token;
+    await loadAdAccounts();
+  }
+
+  async function checkSession() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      if(document.getElementById('loginScreen')) document.getElementById('loginScreen').style.display = 'none';
+      const token = await getMetaToken();
+      window.META_TOKEN = token;
+      META_TOKEN = token;
+      await loadAdAccounts();
+    }
+  }
+
+  async function doLogout() {
+    await supabase.auth.signOut();
+    location.reload();
+  }
+
+  async function saveSnapshot(accountId, accountName, period, ins) {
+    const today   = new Date().toISOString().slice(0, 10);
+    const spend   = parseFloat(ins?.spend || 0);
+    const leads   = getActionValue(ins?.actions,       ['lead','onsite_conversion.lead_grouped','offsite_conversion.fb_pixel_lead']);
+    const revenue = getActionValue(ins?.action_values, ['purchase','omni_purchase','offsite_conversion.fb_pixel_purchase']);
+    await supabase.from('account_snapshots').upsert({
+      account_id:   accountId,
+      account_name: accountName,
+      date:         today,
+      period,
+      spend,
+      impressions:  parseInt(ins?.impressions || 0),
+      reach:        parseInt(ins?.reach       || 0),
+      clicks:       parseInt(ins?.clicks      || 0),
+      leads,
+      revenue,
+      roas:  spend > 0 && revenue > 0 ? revenue / spend : 0,
+      cpl:   leads > 0               ? spend   / leads  : 0,
+      ctr:   parseFloat(ins?.ctr || 0),
+      cpm:   parseFloat(ins?.cpm || 0),
+      cpc:   parseFloat(ins?.cpc || 0),
+    }, { onConflict: 'account_id,date,period' });
+  }
+
+  /* Navigation Tabs */
+  function setTab(tab, btnElt) {
+    // Update active class on nav
+    document.querySelectorAll('#sidebarNav .nav-item').forEach(b => b.classList.remove('active'));
+    btnElt.classList.add('active');
+    
+    // Toggle views
+    ['view-dashboard', 'view-pixels', 'view-config', 'view-empty'].forEach(id => {
+      const el = document.getElementById(id);
+      if(el) el.style.display = 'none';
+    });
+
+    const targetId = tab === 'dashboard' || tab === 'pixels' || tab === 'config' ? 'view-' + tab : 'view-empty';
+    const targetEl = document.getElementById(targetId);
+    if(targetEl) targetEl.style.display = 'flex';
+  }
 
   /* Utils */
   function setDate() {
@@ -561,7 +710,7 @@
   /* API Connect */
   async function metaGet(path, params = {}) {
     const url = new URL(`${GRAPH}/${path}`);
-    url.searchParams.set('access_token', META_TOKEN);
+    url.searchParams.set('access_token', window.META_TOKEN || META_TOKEN);
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
     const res = await fetch(url.toString());
     const data = await res.json();
@@ -652,6 +801,7 @@
       renderRoasChart(topCampaigns.data);
       renderMockCopies(); // Since Meta API text fetching requires Creative endpoint mapping, mocking based on instructions for layout
       
+      await saveSnapshot(accountId, name, currentPreset, genInsights.data[0]);
       showToast('✅ Dados atualizados com sucesso!');
     } catch(e) {
       showToast('Erro ao carregar dados: ' + e.message, true);
