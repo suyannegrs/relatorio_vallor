@@ -1435,6 +1435,14 @@ async function getMetaToken() {
 }
 
 // Salvar snapshot após carregar dados reais
+// Função de atualizar chamada pelo HTML
+async function refreshData() {
+  await loadAdAccounts();
+}
+
+// Alias para compatibilidade
+const setTab = (...args) => setNavTab(...args);
+
 async function saveSnapshot(accountId, accountName, period, insightsArr) {
   try {
     const today = new Date().toISOString().slice(0, 10);

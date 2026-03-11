@@ -552,7 +552,13 @@
 <script>
   const SUPABASE_URL  = 'https://npmqtopvsucpwtwfcuqw.supabase.co';
   const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5wbXF0b3B2c3VjcHd0d2ZjdXF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyMzk5MTUsImV4cCI6MjA4ODgxNTkxNX0.wOrf5jQj3ai55x3LeR8YWj0HsGQibactzFoEqKcKQe4';
-  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  let supabase;
+  try {
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  } catch(e) { console.error("Erro ao inicializar Supabase:", e); }
+
+  // Alias para garantir compatibilidade se o HTML chamar setNavTab
+  const setNavTab = (...args) => setTab(...args);
 
   let META_TOKEN = ''; 
   const META_APP_ID = '2354445118315543';
