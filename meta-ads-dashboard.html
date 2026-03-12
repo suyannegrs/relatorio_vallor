@@ -1407,13 +1407,7 @@ body::before {
       </div>
       <div style="border-top: 1px solid var(--border); padding-top: 20px; margin-top: 20px;">
         <h3 style="font-size: 14px; margin-bottom: 16px;">Pixels Ativos</h3>
-        <div style="background: var(--surface2); border: 1px solid var(--border); padding: 16px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
-          <div>
-            <div style="font-weight: 500; margin-bottom: 4px;">🎯 Pixel — Landing Page Vendas</div>
-            <div style="font-size: 11px; color: var(--text3); font-family: 'Geist Mono', monospace;">ID: 758392018374920</div>
-          </div>
-          <div class="status-chip ok"><div class="pixel-dot firing"></div> Disparando (Eventos: View, Lead)</div>
-        </div>
+        <div id="pixelListContainer" style="display:grid; gap:12px;"></div>
       </div>
     </div>
   </div>
@@ -1443,6 +1437,11 @@ body::before {
     </div>
   </div>
 
+  <!-- NOVOS CONTAINERS MODULARES -->
+  <div class="content" id="view-relatorios" style="display: none;"></div>
+  <div class="content" id="view-criativos" style="display: none;"></div>
+  <div class="content" id="view-audiencias" style="display: none;"></div>
+  <div class="content" id="view-financeiro" style="display: none;"></div>
 
 </div>
 
@@ -1453,18 +1452,18 @@ body::before {
     <div class="modal-title">📄 Exportar Relatório</div>
     <div class="modal-sub">Escolha o formato de exportação</div>
 
-    <div class="modal-option" onclick="exportPDF()">
-      <span class="opt-icon">📋</span>
+    <div class="modal-option" onclick="exportPDFClient()">
+      <span class="opt-icon">👤</span>
       <div>
-        <div class="opt-label">PDF Completo</div>
-        <div class="opt-sub">Dashboard completo com todos os dados</div>
+        <div class="opt-label">Relatório do Cliente</div>
+        <div class="opt-sub">2 páginas: Capa + KPIs e Gráficos</div>
       </div>
     </div>
-    <div class="modal-option">
-      <span class="opt-icon">📊</span>
+    <div class="modal-option" onclick="exportPDFAgency()">
+      <span class="opt-icon">🏢</span>
       <div>
-        <div class="opt-label">Relatório Executivo</div>
-        <div class="opt-sub">Resumo para apresentação ao cliente</div>
+        <div class="opt-label">Visão da Agência</div>
+        <div class="opt-sub">3 páginas: Tudo + Tabela Multi-BM</div>
       </div>
     </div>
     <div class="modal-option">
@@ -1477,7 +1476,7 @@ body::before {
 
     <div class="modal-actions">
       <button class="btn btn-ghost" style="flex:1" onclick="hideExport()">Cancelar</button>
-      <button class="btn btn-primary" style="flex:1" onclick="exportPDF()">Exportar PDF</button>
+      <button class="btn btn-primary" style="flex:1" onclick="exportPDFClient()">Baixar PDF</button>
     </div>
   </div>
 </div>
@@ -1601,152 +1600,157 @@ async function updateCreatives(ads) {
   }).join('');
 }
 
-async function exportPDF() {
-  const modal = document.getElementById('exportOverlay');
-  if (modal) modal.style.display = 'none';
+async function generateBasePDF(doc, W, H, M, clientName, period, today) {
+  // PAGE 1 — COVER
+  doc.setFillColor(6, 8, 13);
+  doc.rect(0, 0, W, H, 'F');
+  doc.setFillColor(79, 142, 247);
+  doc.rect(0, 0, W, 2, 'F');
 
-  if (typeof window.jspdf === 'undefined') {
-    showToast('❌ Carregando bibliotecas...');
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    if (typeof window.jspdf === 'undefined') {
-      showToast('❌ Erro: jsPDF não carregou. Recarregue a página.');
-      return;
-    }
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(28);
+  doc.setTextColor(232, 237, 245);
+  doc.text('Ads', M, 36);
+  doc.setTextColor(79, 142, 247);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Vallor', M + 21, 36);
+
+  doc.setFontSize(8);
+  doc.setTextColor(61, 77, 96);
+  doc.text('AGENCY DASHBOARD — RELATÓRIO DE PERFORMANCE', M, 44);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(18);
+  doc.setTextColor(232, 237, 245);
+  doc.text(clientName, M, 68);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.setTextColor(136, 150, 168);
+  doc.text(`Período: ${period}   ·   ${today}`, M, 78);
+
+  doc.setDrawColor(20, 30, 48);
+  doc.line(M, 86, W - M, 86);
+
+  const kpiSelectors = [
+    { label: 'INVESTIMENTO', id: 'kpi-invest', color: [79,142,247] },
+    { label: 'ROAS',         id: 'kpi-roas',   color: [52,211,153] },
+    { label: 'LEADS',        id: 'kpi-leads',  color: [251,191,36] },
+    { label: 'CPL',          id: 'kpi-cpl',    color: [167,139,250] },
+  ];
+
+  kpiSelectors.forEach((k, i) => {
+    const x = M + (i % 2) * 91;
+    const y = 93 + Math.floor(i / 2) * 34;
+    const value = document.getElementById(k.id)?.textContent?.trim() || '—';
+
+    doc.setFillColor(10, 14, 22);
+    doc.roundedRect(x, y, 86, 29, 2, 2, 'F');
+    doc.setFillColor(...k.color);
+    doc.rect(x, y, 86, 1.5, 'F');
+    doc.setFontSize(6.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(61, 77, 96);
+    doc.text(k.label, x + 4, y + 8);
+    doc.setFontSize(15);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...k.color);
+    doc.text(value, x + 4, y + 22);
+  });
+
+  doc.setFontSize(7);
+  doc.text('Ads Vallor · Vallor Growth Platform · Confidencial', M, H - 8);
+  doc.text('1 / 2', W - M - 8, H - 8);
+
+  // PAGE 2 — CHARTS
+  doc.addPage();
+  doc.setFillColor(6, 8, 13);
+  doc.rect(0, 0, W, H, 'F');
+  const charts = document.querySelector('.charts-row');
+  if (charts) {
+    const canvas = await html2canvas(charts, { backgroundColor: '#06080d', scale: 2 });
+    const imgData = canvas.toDataURL('image/png');
+    doc.addImage(imgData, 'PNG', M, 20, W - (M * 2), 100);
   }
+}
 
-  showToast('📄 Gerando PDF...');
-
+async function exportPDFClient() {
+  hideExport();
+  showToast('📄 Gerando Relatório do Cliente...');
   try {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const W = 210, H = 297, M = 12;
-
     const clientName = document.querySelector('#selectedClient')?.textContent?.trim() || 'Cliente';
     const period = document.querySelector('.period-btn.active')?.textContent?.trim() || '7 dias';
     const today = new Date().toLocaleDateString('pt-BR', { day:'numeric', month:'long', year:'numeric' });
 
-    // PAGE 1 — COVER
-    doc.setFillColor(6, 8, 13);
-    doc.rect(0, 0, W, H, 'F');
-    doc.setFillColor(79, 142, 247);
-    doc.rect(0, 0, W, 2, 'F');
+    await generateBasePDF(doc, W, H, M, clientName, period, today);
+    doc.save(`Relatorio_Cliente_${clientName.replace(/\s+/g,'_')}.pdf`);
+    showToast('✅ PDF do Cliente baixado!');
+  } catch(e) { console.error(e); showToast('❌ Erro no PDF'); }
+}
 
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(28);
-    doc.setTextColor(232, 237, 245);
-    doc.text('Ads', M, 36);
-    doc.setTextColor(79, 142, 247);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Vallor', M + 21, 36);
+async function exportPDFAgency() {
+  hideExport();
+  showToast('📄 Gerando Visão da Agência...');
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const W = 210, H = 297, M = 12;
+    const clientName = document.querySelector('#selectedClient')?.textContent?.trim() || 'Cliente';
+    const period = document.querySelector('.period-btn.active')?.textContent?.trim() || '7 dias';
+    const today = new Date().toLocaleDateString('pt-BR', { day:'numeric', month:'long', year:'numeric' });
 
-    doc.setFontSize(8);
-    doc.setTextColor(61, 77, 96);
-    doc.text('AGENCY DASHBOARD — RELATÓRIO DE PERFORMANCE', M, 44);
+    await generateBasePDF(doc, W, H, M, clientName, period, today);
 
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(18);
-    doc.setTextColor(232, 237, 245);
-    doc.text(clientName, M, 68);
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.setTextColor(136, 150, 168);
-    doc.text(`Período: ${period}   ·   ${today}`, M, 78);
-
-    doc.setDrawColor(20, 30, 48);
-    doc.line(M, 86, W - M, 86);
-
-    const kpiSelectors = [
-      { label: 'INVESTIMENTO', id: 'kpi-invest', color: [79,142,247] },
-      { label: 'ROAS',         id: 'kpi-roas',   color: [52,211,153] },
-      { label: 'LEADS',        id: 'kpi-leads',  color: [251,191,36] },
-      { label: 'CPL',          id: 'kpi-cpl',    color: [167,139,250] },
-    ];
-
-    kpiSelectors.forEach((k, i) => {
-      const x = M + (i % 2) * 91;
-      const y = 93 + Math.floor(i / 2) * 34;
-      const value = document.getElementById(k.id)?.textContent?.trim() || '—';
-
-      doc.setFillColor(10, 14, 22);
-      doc.roundedRect(x, y, 86, 29, 2, 2, 'F');
-      doc.setFillColor(...k.color);
-      doc.rect(x, y, 86, 1.5, 'F');
-      doc.setFontSize(6.5);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(61, 77, 96);
-      doc.text(k.label, x + 4, y + 8);
-      doc.setFontSize(15);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...k.color);
-      doc.text(value, x + 4, y + 22);
-    });
-
-    doc.setFontSize(7);
-    doc.text('Ads Vallor · Vallor Growth Platform · Confidencial', M, H - 8);
-    doc.text('1 / 2', W - M - 8, H - 8);
-
-    // PAGE 2 — MULTI-BM TABLE
+    // PAGE 3 — TABLE
     doc.addPage();
     doc.setFillColor(6, 8, 13);
     doc.rect(0, 0, W, H, 'F');
-    doc.setFillColor(79, 142, 247);
-    doc.rect(0, 0, W, 2, 'F');
-
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(13);
+    doc.setFontSize(14);
     doc.setTextColor(232, 237, 245);
-    doc.text('Visão Consolidada — Todos os Clientes', M, 16);
+    doc.text('Visão Consolidada da Agência', M, 20);
 
-    const cols   = ['CLIENTE', 'INVEST.', 'ROAS', 'LEADS', 'SALDO', 'STATUS'];
-    const widths = [60, 26, 20, 20, 26, 22];
+    const cols = ['CLIENTE', 'GASTO', 'ROAS', 'LEADS', 'SALDO', 'STATUS'];
+    const widths = [60, 30, 20, 20, 30, 26];
     let cx = M;
-
-    doc.setFillColor(14, 20, 32);
-    doc.rect(M, 22, W - M * 2, 8, 'F');
+    doc.setFillColor(10, 14, 22);
+    doc.rect(M, 26, W - (M * 2), 8, 'F');
+    doc.setFontSize(7);
     cols.forEach((col, i) => {
-      doc.setFontSize(6);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(61, 77, 96);
-      doc.text(col, cx + 2, 27);
+      doc.text(col, cx + 2, 31);
       cx += widths[i];
     });
 
-    const tableRows = document.querySelectorAll('#bmTableBody tr');
-    let ry = 34;
-
-    tableRows.forEach((row, i) => {
+    const rows = document.querySelectorAll('#bmTableBody tr');
+    let ry = 38;
+    rows.forEach(row => {
       const cells = row.querySelectorAll('td');
-      if (!cells.length) return;
-      if (i % 2 === 0) {
-        doc.setFillColor(10, 14, 22);
-        doc.rect(M, ry - 4, W - M * 2, 9, 'F');
-      }
-      const vals = Array.from(cells).slice(0, 6).map(c => c.textContent.trim().substring(0, 18));
+      if (cells.length < 5) return;
       cx = M;
-      vals.forEach((v, j) => {
-        doc.setFont('helvetica', j === 0 ? 'bold' : 'normal');
-        doc.setFontSize(7.5);
-        doc.setTextColor(232, 237, 245);
-        doc.text(v, cx + 2, ry + 1);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      // USER REQUEST: Indices [1, 2, 3, 4] for Gasto, ROAS, Leads, Saldo
+      const rowData = [
+        cells[0].textContent.trim().substring(0, 20), // Cliente
+        cells[1].textContent.trim(), // Gasto (as per adjusted table)
+        cells[2].textContent.trim(), // ROAS
+        cells[3].textContent.trim(), // Leads
+        cells[4].textContent.trim(), // Saldo
+        cells[5]?.textContent.trim() || 'OK' // Status
+      ];
+      rowData.forEach((val, j) => {
+        doc.text(val, cx + 2, ry);
         cx += widths[j];
       });
-      ry += 9;
-      if (ry > H - 20) { doc.addPage(); ry = 20; }
+      ry += 8;
     });
 
-    doc.setFontSize(7);
-    doc.text('Ads Vallor · Vallor Growth Platform · Confidencial', M, H - 8);
-    doc.text('2 / 2', W - M - 8, H - 8);
-
-    const filename = `AdsVallor_${clientName.replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.pdf`;
-    doc.save(filename);
-    showToast(`✅ PDF baixado: ${filename}`);
-
-  } catch(err) {
-    console.error('PDF Error:', err);
-    showToast('❌ Erro ao gerar PDF: ' + err.message);
-  }
+    doc.save(`Visao_Agencia_${new Date().toISOString().slice(0,10)}.pdf`);
+    showToast('✅ PDF da Agência baixado!');
+  } catch(e) { console.error(e); showToast('❌ Erro no PDF'); }
 }
 
 // Função de atualizar chamada pelo HTML
@@ -1771,14 +1775,15 @@ window.setNavTab = function(tabId, btnElt) {
   const target = document.getElementById('view-' + tabId);
   if (target) {
     target.style.display = 'block';
-  } else {
-    // Se a div não existir, renderiza dinamicamente no container main
-    switch(tabId) {
-      case 'relatorios': renderRelatorios(); break;
-      case 'criativos':  renderCriativos();  break;
-      case 'audiencias': renderAudiencias(); break;
-      case 'pixels':     renderPixels();      break;
-      case 'financeiro': renderFinanceiro(); break;
+    // Renderiza sempre para garantir dados atualizados
+    if (tabId !== 'dashboard' && tabId !== 'config') {
+      switch(tabId) {
+        case 'relatorios': renderRelatorios(); break;
+        case 'criativos':  renderCriativos();  break;
+        case 'audiencias': renderAudiencias(); break;
+        case 'pixels':     renderPixels();      break;
+        case 'financeiro': renderFinanceiro(); break;
+      }
     }
   }
 
@@ -1798,26 +1803,31 @@ function toggleMobileSidebar() {
 
 // ── RENDERIZAÇÃO DE PÁGINAS ────────────────────────────────
 function renderRelatorios() {
-  const main = getMainContainer();
-  main.innerHTML = `
+  const container = document.getElementById('view-relatorios');
+  if(!container) return;
+  container.innerHTML = `
     <div class="page-header" style="margin-bottom:24px;">
       <h2 style="font-size:20px;font-weight:500;">📋 Relatórios</h2>
-      <p style="color:var(--text3);font-size:13px;margin-top:4px;">Gere e exporte relatórios dos seus clientes</p>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;">
-      <div class="kpi-card blue" style="cursor:pointer;" onclick="exportPDF()">
-        <div style="font-size:32px;margin-bottom:12px;">📄</div>
-        <div style="font-size:14px;font-weight:600;margin-bottom:6px;">PDF Completo</div>
-        <div style="font-size:12px;color:var(--text2);">Dashboard completo em PDF com KPIs e análise de performance.</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:24px;">
+      <div class="kpi-card blue" style="cursor:pointer;" onclick="exportPDFClient()">
+        <div style="font-size:32px;margin-bottom:12px;">👤</div>
+        <div style="font-size:14px;font-weight:600;margin-bottom:6px;">Gerar PDF do Cliente</div>
+        <div style="font-size:12px;color:var(--text2);">Relatório simplificado para envio direto.</div>
       </div>
-      <div class="kpi-card purple">
-        <div style="font-size:32px;margin-bottom:12px;">📊</div>
-        <div style="font-size:14px;font-weight:600;margin-bottom:6px;">Snapshots Salvos</div>
+      <div class="kpi-card purple" style="cursor:pointer;" onclick="exportPDFAgency()">
+        <div style="font-size:32px;margin-bottom:12px;">🏢</div>
+        <div style="font-size:14px;font-weight:600;margin-bottom:6px;">Gerar PDF da Agência</div>
+        <div style="font-size:12px;color:var(--text2);">Visão completa com todas as contas da Multi-BM.</div>
+      </div>
+      <div class="kpi-card orange">
+        <div style="font-size:32px;margin-bottom:12px;">⏳</div>
+        <div style="font-size:14px;font-weight:600;margin-bottom:6px;">Snapshots Histórico</div>
         <div id="snapshotCount" style="font-size:24px;font-weight:700;color:var(--accent);margin-top:8px;">—</div>
       </div>
     </div>
-    <div class="kpi-card" style="margin-top:20px;">
-      <div style="font-size:13px;font-weight:500;margin-bottom:16px;">📅 Histórico de Performance</div>
+    <div class="kpi-card">
+      <div style="font-size:13px;font-weight:500;margin-bottom:16px;">📅 Histórico de Performance (Supabase)</div>
       <div id="historyTable" style="font-size:12px;">Carregando histórico...</div>
     </div>
   `;
@@ -1840,62 +1850,120 @@ async function loadReportHistory() {
   } catch(e) {}
 }
 
-function renderCriativos() {
-  const main = getMainContainer();
-  main.innerHTML = `
+async function renderCriativos() {
+  const container = document.getElementById('view-criativos');
+  if(!container) return;
+  container.innerHTML = `
     <div class="page-header" style="margin-bottom:24px;">
-      <h2 style="font-size:20px;font-weight:500;">🎨 Criativos</h2>
-      <p style="color:var(--text3);font-size:13px;margin-top:4px;">Análise visual de todos os anúncios ativos</p>
+      <h2 style="font-size:20px;font-weight:500;">🎨 Criativos Ativos</h2>
     </div>
-    <div class="creatives-grid" id="creativesGridPage"></div>
+    <div class="creatives-grid" id="creativesGridPage">Carregando imagens reais...</div>
   `;
-  // Reutiliza a lógica de buscar criativos pro dashboard
   const grid = document.getElementById('creativesGridPage');
-  grid.innerHTML = document.getElementById('creativesGrid')?.innerHTML || '<p style="color:var(--text3)">Carregue uma conta no Dashboard primeiro.</p>';
+  if (window.currentAdsData) {
+    const sorted = [...window.currentAdsData].sort((a,b) => parseFloat(b.spend||0) - parseFloat(a.spend||0)).slice(0,12);
+    const adIds = sorted.map(a => a.ad_id).filter(Boolean);
+    const thumbnails = adIds.length ? await fetchCreativeThumbnails(adIds, window.META_TOKEN) : {};
+    
+    grid.innerHTML = sorted.map((ad, i) => {
+      const thumb = thumbnails[ad.ad_id];
+      const ctr = parseFloat(ad.ctr || 0).toFixed(2) + '%';
+      const spend = toBRL(parseFloat(ad.spend || 0));
+      return `
+        <div class="creative-card">
+          <div class="creative-thumb" style="height:140px; background:#0e1420; display:flex; align-items:center; justify-content:center;">
+            ${thumb ? `<img src="${thumb}" style="width:100%;height:100%;object-fit:cover;">` : `<span style="font-size:32px">🎨</span>`}
+          </div>
+          <div class="creative-info">
+            <div style="font-size:11px;font-weight:600;margin-bottom:6px;height:32px;overflow:hidden;">${ad.ad_name}</div>
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);">
+              <span>CTR: <b style="color:var(--accent)">${ctr}</b></span>
+              <span>Gasto: <b style="color:var(--text2)">${spend}</b></span>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } else {
+    grid.innerHTML = '<p style="color:var(--text3)">Nenhum dado de anúncio carregado.</p>';
+  }
 }
 
 function renderAudiencias() {
-  const main = getMainContainer();
-  main.innerHTML = `
+  const container = document.getElementById('view-audiencias');
+  if(!container) return;
+  container.innerHTML = `
     <div class="page-header" style="margin-bottom:24px;">
-      <h2 style="font-size:20px;font-weight:500;">👥 Audiências & Multi-BM</h2>
-      <p style="color:var(--text3);font-size:13px;margin-top:4px;">Visão consolidada de todos os clientes</p>
+      <h2 style="font-size:20px;font-weight:500;">👥 Visão Consolidada Multi-BM</h2>
     </div>
-    <div class="multi-bm" id="audiencesBM"></div>
+    <div class="multi-bm">
+      <table class="bm-table">
+        <thead>
+          <tr>
+            <th>CLIENTE</th>
+            <th>GASTO</th>
+            <th>ROAS</th>
+            <th>LEADS</th>
+            <th>SALDO</th>
+            <th>STATUS</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="audiencesBMTable"></tbody>
+      </table>
+    </div>
   `;
-  const table = document.querySelector('.multi-bm').cloneNode(true);
-  document.getElementById('audiencesBM').appendChild(table);
+  if (window.allAdAccounts) {
+    loadAllAccountsTable(window.allAdAccounts, 'audiencesBMTable');
+  }
 }
 
 function renderPixels() {
-  const main = getMainContainer();
-  main.innerHTML = `
+  const container = document.getElementById('view-pixels');
+  if(!container) return;
+  container.innerHTML = `
     <div class="page-header" style="margin-bottom:24px;">
       <h2 style="font-size:20px;font-weight:500;">📡 Gestão de Pixels</h2>
     </div>
-    <div style="display:grid;gap:12px;" id="pixelsPageList"></div>
+    <div id="pixelsViewList" style="display:grid; gap:12px;"></div>
   `;
-  const container = document.getElementById('pixelsPageList');
-  window.allAdAccounts.forEach(acc => {
-    container.innerHTML += `<div class="kpi-card" style="display:flex;justify-content:space-between;align-items:center;padding:16px;">
-      <div><div style="font-weight:500">${acc.name}</div><div style="font-size:11px;color:var(--text3)">${acc.id}</div></div>
-      <div class="status-chip ok">● ATIVO</div>
-    </div>`;
-  });
+  const list = document.getElementById('pixelsViewList');
+  if (window.allAdAccounts && window.allAdAccounts.length) {
+    list.innerHTML = window.allAdAccounts.map(acc => `
+      <div class="kpi-card" style="display:flex; justify-content:space-between; align-items:center; padding:16px;">
+        <div>
+          <div style="font-weight:500;">${acc.name}</div>
+          <div style="font-size:11px; color:var(--text3); font-family:'Geist Mono',monospace;">ID: ${acc.id}</div>
+        </div>
+        <div class="status-chip ok">● ATIVO</div>
+      </div>
+    `).join('');
+  } else {
+    list.innerHTML = '<p style="color:var(--text3)">Nenhuma conta conectada.</p>';
+  }
 }
 
 function renderFinanceiro() {
-  const main = getMainContainer();
-  main.innerHTML = `
+  const container = document.getElementById('view-financeiro');
+  if(!container) return;
+  container.innerHTML = `
     <div class="page-header" style="margin-bottom:24px;">
-      <h2 style="font-size:20px;font-weight:500;">💰 Financeiro</h2>
+      <h2 style="font-size:20px;font-weight:500;">💰 Financeiro & Balanço</h2>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;">
-      ${window.allAdAccounts.map(acc => `<div class="kpi-card" style="padding:20px;">
-        <div style="font-weight:500;margin-bottom:12px;">${acc.name}</div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:8px;"><span>Saldo</span><span style="color:var(--green)">${toBRL(acc.balance/100)}</span></div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;"><span>Total Gasto</span><span style="color:var(--accent)">${toBRL(acc.amount_spent/100)}</span></div>
-      </div>`).join('')}
+    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:16px;">
+      ${window.allAdAccounts && window.allAdAccounts.length ? window.allAdAccounts.map(acc => `
+        <div class="kpi-card shadow" style="padding:24px;">
+          <div style="font-weight:600; margin-bottom:16px; border-bottom:1px solid var(--border); padding-bottom:12px;">${acc.name}</div>
+          <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:10px;">
+             <span style="color:var(--text3);">Total Gasto</span>
+             <b style="color:var(--accent);">${toBRL((acc.amount_spent || 0) / 100)}</b>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:13px;">
+             <span style="color:var(--text3);">Saldo em Conta</span>
+             <b style="color:var(--green);">${toBRL((acc.balance || 0) / 100)}</b>
+          </div>
+        </div>
+      `).join('') : '<p style="color:var(--text3)">Nenhuma conta financeira carregada.</p>'}
     </div>
   `;
 }
@@ -2000,7 +2068,7 @@ async function loadAdAccounts() {
       fields: 'id,name,account_status,currency,balance,amount_spent,business',
       limit: 50
     });
-    allAdAccounts = data.data || [];
+    window.allAdAccounts = data.data || [];
     if (allAdAccounts.length === 0) {
       showToast('⚠️ Nenhuma conta encontrada para este token.');
       return;
@@ -2060,6 +2128,7 @@ async function loadAccountData(accountId, accountName) {
       metaGet(`${accountId}/insights`, { fields: 'campaign_name,spend,actions,action_values', date_preset: preset, level: 'campaign', sort: 'spend_descending', limit: 5 })
     ]);
 
+    window.currentAdsData = adsInsights.data || [];
     const insights = insightsRes.data?.[0] || {};
     const prev = prevRes.data?.[0] || {};
 
@@ -2333,7 +2402,7 @@ async function updateCreatives(ads) {
 }
 
 // ── TABELA MULTI-BM REAL ─────────────────────────────────────
-async function loadAllAccountsTable(accounts) {
+async function loadAllAccountsTable(accounts, targetTbodyId = 'bmTableBody') {
   const preset = DATE_PRESETS[currentDatePreset] || 'last_7d';
   const rows = [];
   for (const acc of accounts.slice(0, 10)) {
@@ -2351,32 +2420,27 @@ async function loadAllAccountsTable(accounts) {
       const roas    = revenue > 0 && spend > 0 ? (revenue/spend).toFixed(1)+'x' : '—';
       const balance = parseFloat(accDetail.balance || 0) / 100;
       const status  = accDetail.account_status === 1 ? 'ok' : accDetail.account_status === 2 ? 'warn' : 'err';
-      rows.push({ name: acc.name, bm: acc.id.replace('act_',''), pixel: 'firing', status, invest: toBRL(spend), roas, leads: Math.round(leads) || '—', saldo: toBRL(balance) });
+      // MAPPING COLS: [0] CLIENTE, [1] INVEST, [2] ROAS, [3] LEADS, [4] SALDO, [5] STATUS
+      rows.push({ name: acc.name, invest: toBRL(spend), roas, leads: Math.round(leads) || '0', saldo: toBRL(balance), status });
     } catch(e) {
-      rows.push({ name: acc.name, bm: acc.id.replace('act_',''), pixel: 'issue', status: 'warn', invest: '—', roas: '—', leads: '—', saldo: '—' });
+      rows.push({ name: acc.name, invest: 'R$0', roas: '—', leads: '0', saldo: 'R$0', status: 'warn' });
     }
   }
-  renderBMTableReal(rows);
+  renderBMTableReal(rows, targetTbodyId);
 }
 
-function renderBMTableReal(rows) {
-  const tbody = document.getElementById('bmTableBody');
+function renderBMTableReal(rows, targetTbodyId = 'bmTableBody') {
+  const tbody = document.getElementById(targetTbodyId);
+  if(!tbody) return;
   tbody.innerHTML = rows.map(c => `
     <tr>
       <td><strong style="font-size:12.5px">${c.name}</strong></td>
-      <td style="font-family:'Geist Mono',monospace;font-size:11px;color:var(--text3)">${c.bm}</td>
-      <td>
-        <div class="pixel-status">
-          <div class="pixel-dot ${c.pixel}"></div>
-          <span style="font-size:11px;font-family:'Geist Mono',monospace">${c.pixel === 'firing' ? 'Ativo' : c.pixel === 'issue' ? 'Problema' : 'Inativo'}</span>
-        </div>
-      </td>
-      <td><span class="status-chip ${c.status}">${c.status === 'ok' ? '● Ativo' : c.status === 'warn' ? '⚠ Atenção' : '✕ Erro'}</span></td>
       <td style="font-family:'Geist Mono',monospace;font-size:12px">${c.invest}</td>
       <td style="font-family:'Geist',monospace;font-weight:700;font-size:13px;color:${c.roas !== '—' && parseFloat(c.roas) >= 4 ? 'var(--green)' : c.roas !== '—' && parseFloat(c.roas) >= 2 ? 'var(--orange)' : 'var(--red)'}">${c.roas}</td>
       <td style="font-family:'Geist Mono',monospace;font-size:12px">${c.leads}</td>
       <td style="font-family:'Geist Mono',monospace;font-size:12px;color:var(--green)">${c.saldo}</td>
-      <td><button class="btn btn-ghost" style="font-size:10px;padding:4px 8px" onclick="selectRealClient('act_${c.bm}','${c.name.replace(/'/g,"\\'")}')">Ver</button></td>
+      <td><span class="status-chip ${c.status}">${c.status === 'ok' ? '● Ativo' : c.status === 'warn' ? '⚠ Atenção' : '✕ Erro'}</span></td>
+      <td><button class="btn btn-ghost" style="font-size:10px;padding:4px 8px" onclick="selectRealClient('act_','${c.name.replace(/'/g,"\\'")}')">Ver</button></td>
     </tr>
   `).join('');
 }
@@ -2450,9 +2514,7 @@ async function doLogout() {
 document.addEventListener('DOMContentLoaded', () => {
   setDate();
   loadingAnim();
-  renderBMTable();
-  renderCreatives();
-  renderCopies();
+  // Inicialização básica agora depende do Meta Token
   setTimeout(() => {
     mainChartInstance = initMainChart();
     roasChartInstance = initROASChart();
@@ -2482,258 +2544,6 @@ function toggleClientList() {
   document.getElementById('clientList').classList.toggle('open');
 }
 
-function selectClient(name) {
-  document.getElementById('selectedClient').textContent = name;
-  document.getElementById('clientList').classList.remove('open');
-  showToast('✅ Cliente alterado: ' + name);
-  loadingAnim();
-}
-
-function setPeriod(btn, period) {
-  document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  currentDatePreset = period;
-  loadingAnim();
-  showToast('📅 Período: ' + period);
-  if (activeAdAccountId) {
-    const accName = document.getElementById('selectedClient').textContent;
-    loadAccountData(activeAdAccountId, accName);
-    loadAllAccountsTable(allAdAccounts);
-  }
-}
-
-function refreshData() {
-  loadingAnim();
-  loadAdAccounts();
-  showToast('🔄 Atualizando dados da Meta API...');
-}
-
-// --- CHARTS ---
-function initMainChart() {
-  const ctx = document.getElementById('mainChart').getContext('2d');
-  return new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'],
-      datasets: [
-        {
-          label: 'Investimento (R$)',
-          data: [620, 580, 710, 680, 750, 820, 598],
-          backgroundColor: 'rgba(59,130,246,0.5)',
-          borderColor: '#3b82f6',
-          borderWidth: 1,
-          borderRadius: 4,
-          yAxisID: 'y',
-        },
-        {
-          label: 'Leads',
-          data: [38, 42, 55, 48, 62, 74, 43],
-          type: 'line',
-          borderColor: '#f59e0b',
-          backgroundColor: 'rgba(245,158,11,0.1)',
-          fill: true,
-          tension: 0.4,
-          pointRadius: 4,
-          pointBackgroundColor: '#f59e0b',
-          yAxisID: 'y1',
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      interaction: { mode: 'index' },
-      plugins: { legend: { display: false }, tooltip: { backgroundColor: '#0d1420', borderColor: '#1e293b', borderWidth: 1, titleColor: '#f1f5f9', bodyColor: '#94a3b8' } },
-      scales: {
-        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#475569', font: { family: 'Geist Mono', size: 10 } } },
-        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#475569', font: { family: 'Geist Mono', size: 10 }, callback: v => 'R$' + v } },
-        y1: { position: 'right', grid: { display: false }, ticks: { color: '#475569', font: { family: 'Geist Mono', size: 10 } } }
-      }
-    }
-  });
-}
-
-function initROASChart() {
-  const ctx = document.getElementById('roasChart').getContext('2d');
-  return new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: ['Sorriso Top', 'Clareamento', 'Invisalign', 'Implante', 'Consulta'],
-      datasets: [{
-        data: [6.2, 5.1, 4.8, 4.2, 3.8],
-        backgroundColor: ['rgba(16,185,129,0.6)', 'rgba(59,130,246,0.6)', 'rgba(139,92,246,0.6)', 'rgba(245,158,11,0.6)', 'rgba(239,68,68,0.6)'],
-        borderRadius: 4,
-      }]
-    },
-    options: {
-      indexAxis: 'y',
-      responsive: true,
-      plugins: { legend: { display: false }, tooltip: { backgroundColor: '#0d1420', bodyColor: '#94a3b8', callbacks: { label: c => ' ROAS: ' + c.raw + 'x' } } },
-      scales: {
-        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#475569', font: { family: 'Geist Mono', size: 10 }, callback: v => v + 'x' } },
-        y: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 11 } } }
-      }
-    }
-  });
-}
-
-function initAgeChart() {
-  const ctx = document.getElementById('ageChart').getContext('2d');
-  return new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: ['18-24', '25-34', '35-44', '45-54', '55-64', '65+'],
-      datasets: [{
-        data: [12, 28, 31, 18, 7, 4],
-        backgroundColor: 'rgba(59,130,246,0.4)',
-        borderColor: '#3b82f6',
-        borderWidth: 1,
-        borderRadius: 3,
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: { legend: { display: false }, tooltip: { backgroundColor: '#0d1420', bodyColor: '#94a3b8', callbacks: { label: c => ' ' + c.raw + '%' } } },
-      scales: {
-        x: { grid: { display: false }, ticks: { color: '#475569', font: { family: 'Geist Mono', size: 9 } } },
-        y: { display: false }
-      }
-    }
-  });
-}
-
-function initSpendChart() {
-  const ctx = document.getElementById('spendChart').getContext('2d');
-  new Chart(ctx, {
-    type: 'doughnut',
-    data: {
-      labels: ['Leads', 'Conversões', 'Tráfego', 'Awareness'],
-      datasets: [{
-        data: [45, 30, 15, 10],
-        backgroundColor: ['rgba(59,130,246,0.7)', 'rgba(139,92,246,0.7)', 'rgba(245,158,11,0.7)', 'rgba(16,185,129,0.7)'],
-        borderWidth: 0,
-        hoverOffset: 6,
-      }]
-    },
-    options: {
-      cutout: '68%',
-      plugins: { legend: { display: false }, tooltip: { backgroundColor: '#0d1420', bodyColor: '#94a3b8', callbacks: { label: c => ' ' + c.raw + '%' } } }
-    }
-  });
-}
-
-function updateChartsForPeriod(p) {
-  // Simulate data change
-  const multipliers = { '24h': 0.14, '7d': 1, '30d': 4.2, '3m': 12.5, '1a': 51 };
-  const m = multipliers[p] || 1;
-  document.getElementById('kpi-invest').textContent = 'R$' + Math.round(4758 * m).toLocaleString('pt-BR');
-  document.getElementById('kpi-leads').textContent = Math.round(312 * m).toLocaleString('pt-BR');
-}
-
-// --- RENDER ---
-function renderBMTable() {
-  const tbody = document.getElementById('bmTableBody');
-  tbody.innerHTML = clients.map(c => `
-    <tr>
-      <td><strong style="font-size:12.5px">${c.name}</strong></td>
-      <td style="font-family:'Geist Mono',monospace;font-size:11px;color:var(--text3)">${c.bm}</td>
-      <td>
-        <div class="pixel-status">
-          <div class="pixel-dot ${c.pixel}"></div>
-          <span style="font-size:11px;font-family:'Geist Mono',monospace">${c.pixel === 'firing' ? 'Disparando' : c.pixel === 'issue' ? 'Problema' : 'Inativo'}</span>
-        </div>
-      </td>
-      <td><span class="status-chip ${c.status}">${c.status === 'ok' ? '● Ativo' : c.status === 'warn' ? '⚠ Atenção' : '✕ Erro'}</span></td>
-      <td class="spend-bar-cell">
-        <span style="font-family:'Geist Mono',monospace;font-size:12px">${c.invest}</span>
-      </td>
-      <td style="font-family:'Geist',sans-serif;font-weight:700;font-size:13px;color:${parseFloat(c.roas) >= 4 ? 'var(--green)' : parseFloat(c.roas) >= 3 ? 'var(--orange)' : 'var(--red)'}">${c.roas}</td>
-      <td style="font-family:'Geist Mono',monospace;font-size:12px">${c.leads}</td>
-      <td style="font-family:'Geist Mono',monospace;font-size:12px;color:var(--green)">${c.saldo}</td>
-      <td><button class="btn btn-ghost" style="font-size:10px;padding:4px 8px" onclick="showToast('📊 Abrindo ${c.name}...')">Ver</button></td>
-    </tr>
-  `).join('');
-}
-
-function renderCreatives() {
-  const grid = document.getElementById('creativesGrid');
-  grid.innerHTML = creatives.map((c, i) => `
-    <div class="creative-card" onclick="showToast('🎨 ${c.name} — ROAS ${c.roas}')">
-      <div class="creative-thumb">
-        <div class="creative-thumb-bg" style="background:${c.bg}"></div>
-        <span style="position:relative;z-index:1;font-size:32px">${c.emoji}</span>
-        <div class="creative-rank">#${i+1}</div>
-        ${c.top ? '<div class="creative-badge">TOP</div>' : ''}
-      </div>
-      <div class="creative-info">
-        <div class="creative-name">${c.name}</div>
-        <div class="creative-stats">
-          <span>ROAS <span class="val">${c.roas}</span></span>
-          <span>CTR <span class="val">${c.ctr}</span></span>
-        </div>
-        <div class="creative-stats" style="margin-top:2px">
-          <span>Leads <span class="val">${c.leads}</span></span>
-        </div>
-      </div>
-    </div>
-  `).join('');
-}
-
-function renderCopies() {
-  document.getElementById('textosList').innerHTML = textos.map(t => `
-    <div class="copy-item">
-      <div class="copy-text">"${t.text}"</div>
-      <div class="copy-metrics">
-        <div class="copy-metric">CTR: <span>${t.ctr}</span></div>
-        <div class="copy-metric">Leads: <span>${t.leads}</span></div>
-      </div>
-    </div>
-  `).join('');
-
-  document.getElementById('descList').innerHTML = descs.map(d => `
-    <div class="copy-item">
-      <div class="copy-text">"${d.text}"</div>
-      <div class="copy-metrics">
-        <div class="copy-metric">CTR: <span>${d.ctr}</span></div>
-        <div class="copy-metric">Leads: <span>${d.leads}</span></div>
-      </div>
-    </div>
-  `).join('');
-
-  document.getElementById('ctaList').innerHTML = ctas.map(c => `
-    <div class="copy-item" style="display:flex;align-items:center;justify-content:space-between">
-      <div class="copy-text" style="margin:0;font-weight:600">${c.text}</div>
-      <div style="text-align:right;min-width:70px">
-        <div style="font-size:12px;color:var(--green);font-family:'Geist Mono',monospace">${c.ctr}</div>
-        <div style="font-size:10px;color:var(--text3);font-family:'Geist Mono',monospace">${c.leads} leads</div>
-      </div>
-    </div>
-  `).join('');
-}
-
-// --- EXPORT ---
-function showExport() {
-  document.getElementById('exportOverlay').classList.add('show');
-}
-
-function hideExport(e) {
-  if (!e || e.target === document.getElementById('exportOverlay')) {
-    document.getElementById('exportOverlay').classList.remove('show');
-  }
-}
-
-function exportPDF() {
-  hideExport();
-  loadingAnim();
-  showToast('📄 Gerando PDF do relatório...');
-}
-
-// --- TOAST ---
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 3000);
-}
 </script>
 </body>
 </html>
