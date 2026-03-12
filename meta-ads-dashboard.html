@@ -59,13 +59,14 @@ body::before {
 .sidebar {
   position: fixed;
   left: 0; top: 0; bottom: 0;
-  width: 240px;
+  width: 220px;
   background: var(--surface);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  z-index: 100;
+  z-index: 1000;
   padding: 24px 0;
+  transition: transform 0.3s ease;
 }
 
 .logo {
@@ -226,10 +227,12 @@ body::before {
 
 /* MAIN */
 .main {
-  margin-left: 240px;
+  margin-left: 220px;
   min-height: 100vh;
   position: relative;
   z-index: 1;
+  padding: 0;
+  transition: margin-left 0.3s ease;
 }
 
 /* HEADER */
@@ -902,14 +905,89 @@ body::before {
 }
 
 /* SCROLLBAR */
-::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-track { background: var(--bg); }
-::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 2px; }
+/* ── MOBILE RESPONSIVE ── */
+@media (max-width: 768px) {
+  .hamburger-btn {
+    display: flex !important;
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 2001;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px;
+    cursor: pointer;
+    flex-direction: column;
+    gap: 4px;
+    align-items: center;
+    justify-content: center;
+  }
+  .hamburger-btn span {
+    display: block;
+    width: 18px;
+    height: 2px;
+    background: var(--text);
+    border-radius: 1px;
+  }
+
+  .sidebar {
+    transform: translateX(-100%);
+    box-shadow: 4px 0 20px rgba(0,0,0,0.5);
+  }
+  .sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 999;
+  }
+  .sidebar-backdrop.visible {
+    display: block;
+  }
+
+  .main {
+    margin-left: 0 !important;
+  }
+
+  .header {
+    padding: 12px 16px 12px 60px !important;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .header-left h1 { font-size: 13px; }
+  .header-right { width: 100%; flex-wrap: wrap; }
+  .period-filter { width: 100%; justify-content: space-between; }
+  .period-btn { padding: 6px 8px; font-size: 10px; }
+
+  .kpi-grid { grid-template-columns: 1fr 1fr !important; }
+  .lower-row { grid-template-columns: 1fr !important; }
+  .charts-row { grid-template-columns: 1fr !important; }
+  .creatives-grid { grid-template-columns: 1fr 1fr !important; }
+  .copies-section { grid-template-columns: 1fr !important; }
+  
+  .account-bar { flex-direction: column; align-items: flex-start; }
+  .account-balance { margin-left: 0; margin-top: 12px; width: 100%; justify-content: space-between; }
+}
+
+.hamburger-btn { display: none; }
 </style>
 </head>
 <body>
 
 <div class="loading-bar" id="loadingBar" style="width:0%"></div>
+
+<!-- HAMBURGER -->
+<button class="hamburger-btn" id="hamBtn" onclick="toggleMobileSidebar()">
+  <span></span><span></span><span></span>
+</button>
+<div class="sidebar-backdrop" id="sideBackdrop" onclick="toggleMobileSidebar()"></div>
 
 <!-- LOGIN SCREEN -->
 <div id="loginScreen" style="position:fixed; inset:0; background:#06080d; display:flex; align-items:center; justify-content:center; z-index:9999; flex-direction:column;">
@@ -960,16 +1038,16 @@ body::before {
   <div class="nav-section">
     <div class="nav-label">PRINCIPAL</div>
     <div class="nav-item active" onclick="setNavTab('dashboard', this)"><span class="icon">⚡</span> Dashboard</div>
-    <div class="nav-item" onclick="setNavTab('empty', this)"><span class="icon">📊</span> Relatórios</div>
-    <div class="nav-item" onclick="setNavTab('empty', this)"><span class="icon">🎨</span> Criativos</div>
-    <div class="nav-item" onclick="setNavTab('empty', this)"><span class="icon">👥</span> Audiências</div>
+    <div class="nav-item" onclick="setNavTab('relatorios', this)"><span class="icon">📊</span> Relatórios</div>
+    <div class="nav-item" onclick="setNavTab('criativos', this)"><span class="icon">🎨</span> Criativos</div>
+    <div class="nav-item" onclick="setNavTab('audiencias', this)"><span class="icon">👥</span> Audiências</div>
   </div>
 
   <div class="nav-section">
     <div class="nav-label">GESTÃO</div>
-    <div class="nav-item" onclick="setNavTab('empty', this)"><span class="icon">🏢</span> Multi-BM</div>
+    <div class="nav-item" onclick="setNavTab('audiencias', this)"><span class="icon">🏢</span> Multi-BM</div>
     <div class="nav-item" onclick="setNavTab('pixels', this)"><span class="icon">📡</span> Pixels</div>
-    <div class="nav-item" onclick="setNavTab('empty', this)"><span class="icon">💰</span> Financeiro</div>
+    <div class="nav-item" onclick="setNavTab('financeiro', this)"><span class="icon">💰</span> Financeiro</div>
     <div class="nav-item" onclick="setNavTab('config', this)"><span class="icon">⚙️</span> Config</div>
   </div>
 
@@ -1365,13 +1443,6 @@ body::before {
     </div>
   </div>
 
-  <div class="content" id="view-empty" style="display: none; align-items: center; justify-content: center; height: 60vh;">
-    <div style="text-align: center;">
-      <div style="font-size: 40px; margin-bottom: 20px;">🚧</div>
-      <h2 style="font-size: 18px; margin-bottom: 8px;">Módulo em Desenvolvimento</h2>
-      <p style="color: var(--text3); font-size: 13px;">Iniciaremos a integração desta tela em breve.</p>
-    </div>
-  </div>
 
 </div>
 
@@ -1449,6 +1520,235 @@ async function getMetaToken() {
   } catch(e) { console.warn('Usando token fallback em meta-ads-dashboard.html'); }
 }
 
+function renderHealthScore(m) {
+  const el = document.getElementById('healthScore');
+  const bar = document.getElementById('healthBar');
+  if(!el || !bar) return;
+  let score = 0;
+  if(m.roas >= 4) score += 40; else if(m.roas >= 2) score += 25; else if(m.roas > 0) score += 10;
+  if(m.ctr >= 1.5) score += 30; else if(m.ctr >= 0.8) score += 15; else if(m.ctr > 0) score += 5;
+  if(m.cpm <= 15) score += 20; else if(m.cpm <= 30) score += 10;
+  if(m.spend > 0) score += 10;
+  score = Math.min(100, score);
+  el.textContent = score;
+  bar.style.width = score + '%';
+  const color = score >= 80 ? 'var(--green)' : score >= 50 ? 'var(--orange)' : 'var(--red)';
+  bar.style.background = color;
+  el.style.color = color;
+}
+
+function checkAccountAlerts(accName, m) {
+  const alerts = [];
+  if(m.roas > 0 && m.roas < 1.5) alerts.push({ type: 'err', msg: 'ROAS Crítico: Baixa eficiência no retorno do investimento.' });
+  if(m.ctr > 0 && m.ctr < 0.7) alerts.push({ type: 'warn', msg: 'CTR Baixo: Seus criativos não estão atraindo cliques.' });
+  if(m.cpm > 45) alerts.push({ type: 'warn', msg: 'CPM Elevado: O custo por mil impressões está acima da média.' });
+  if(m.balance > 0 && m.balance < 100) alerts.push({ type: 'err', msg: 'Saldo Baixo: Conta próxima de pausar por falta de fundos.' });
+  if(alerts.length === 0) alerts.push({ type: 'ok', msg: 'Tudo em ordem. Performance estável conforme os benchmarks.' });
+  return alerts;
+}
+
+function renderAlertsPanel(alerts) {
+  const panel = document.getElementById('alertsPanel');
+  if(!panel) return;
+  panel.innerHTML = alerts.map(a => `
+    <div class="alert-item ${a.type}">
+      <div class="alert-icon">${a.type === 'err' ? '✕' : a.type === 'warn' ? '⚠' : '✓'}</div>
+      <div class="alert-text">${a.msg}</div>
+    </div>
+  `).join('');
+}
+
+async function fetchCreativeThumbnails(adIds, metaToken) {
+  const thumbnails = {};
+  try {
+    const promises = adIds.slice(0, 10).map(async (adId) => {
+      const url = new URL(`https://graph.facebook.com/v19.0/${adId}`);
+      url.searchParams.set('fields', 'creative{thumbnail_url,image_url,video_id}');
+      url.searchParams.set('access_token', metaToken);
+      const res = await fetch(url.toString());
+      const data = await res.json();
+      if (data.creative?.thumbnail_url) {
+        thumbnails[adId] = data.creative.thumbnail_url;
+      } else if (data.creative?.image_url) {
+        thumbnails[adId] = data.creative.image_url;
+      }
+    });
+    await Promise.all(promises);
+  } catch(e) { console.warn('Thumbnails não disponíveis:', e.message); }
+  return thumbnails;
+}
+
+// Versão expandida do updateCreatives com imagens reais
+async function updateCreatives(ads) {
+  if (!ads || !ads.length) return;
+  const sorted = [...ads].sort((a, b) => parseFloat(b.spend || 0) - parseFloat(a.spend || 0)).slice(0, 10);
+  const adIds = sorted.map(a => a.ad_id).filter(Boolean);
+  const thumbnails = adIds.length ? await fetchCreativeThumbnails(adIds, window.META_TOKEN) : {};
+  const colors = ['#3f8ef7','#8b5cf6','#f59e0b','#10b981','#ef4444','#06b6d4','#ec4899','#84cc16','#f97316','#6366f1'];
+  const emojis = ['🏆','🎯','⚡','✅','🎨','📊','🔥','💡','📱','⭐'];
+  const grid = document.getElementById('creativesGrid');
+  if(!grid) return;
+  grid.innerHTML = sorted.map((ad, i) => {
+    const spend = parseFloat(ad.spend || 0);
+    const revenue = getActionValue(ad.action_values, ['purchase', 'omni_purchase', 'offsite_conversion.fb_pixel_purchase']);
+    const roas = revenue > 0 && spend > 0 ? (revenue / spend).toFixed(1) + 'x' : '—';
+    const ctr = parseFloat(ad.ctr || 0).toFixed(2) + '%';
+    const name = (ad.ad_name || 'Anúncio').length > 18 ? (ad.ad_name || 'Anúncio').slice(0, 18) + '…' : (ad.ad_name || 'Anúncio');
+    const thumb = thumbnails[ad.ad_id];
+    const thumbHTML = thumb ? `<img src="${thumb}" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;border-radius:8px 8px 0 0;" onerror="this.parentElement.innerHTML='<span style=\"position:relative;z-index:1;font-size:32px\">${emojis[i]}</span>';">`
+                            : `<div class="creative-thumb-bg" style="background:${colors[i]}"></div><span style="position:relative;z-index:1;font-size:32px">${emojis[i]}</span>`;
+    return `<div class="creative-card" onclick="showToast('📊 ${ad.ad_name} — Gasto: ${toBRL(spend)}')"><div class="creative-thumb" style="position:relative;overflow:hidden;">${thumbHTML}<div class="creative-rank">#${i + 1}</div>${i === 0 ? '<div class="creative-badge">TOP</div>' : ''}</div><div class="creative-info"><div class="creative-name">${name}</div><div class="creative-stats"><span>ROAS <span class="val">${roas}</span></span><span>CTR <span class="val">${ctr}</span></span></div><div class="creative-stats" style="margin-top:2px"><span>Gasto <span class="val">${toBRL(spend)}</span></span></div></div></div>`;
+  }).join('');
+}
+
+async function exportPDF() {
+  const modal = document.getElementById('exportOverlay');
+  if (modal) modal.style.display = 'none';
+
+  if (typeof window.jspdf === 'undefined') {
+    showToast('❌ Carregando bibliotecas...');
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    if (typeof window.jspdf === 'undefined') {
+      showToast('❌ Erro: jsPDF não carregou. Recarregue a página.');
+      return;
+    }
+  }
+
+  showToast('📄 Gerando PDF...');
+
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const W = 210, H = 297, M = 12;
+
+    const clientName = document.querySelector('#selectedClient')?.textContent?.trim() || 'Cliente';
+    const period = document.querySelector('.period-btn.active')?.textContent?.trim() || '7 dias';
+    const today = new Date().toLocaleDateString('pt-BR', { day:'numeric', month:'long', year:'numeric' });
+
+    // PAGE 1 — COVER
+    doc.setFillColor(6, 8, 13);
+    doc.rect(0, 0, W, H, 'F');
+    doc.setFillColor(79, 142, 247);
+    doc.rect(0, 0, W, 2, 'F');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(28);
+    doc.setTextColor(232, 237, 245);
+    doc.text('Ads', M, 36);
+    doc.setTextColor(79, 142, 247);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Vallor', M + 21, 36);
+
+    doc.setFontSize(8);
+    doc.setTextColor(61, 77, 96);
+    doc.text('AGENCY DASHBOARD — RELATÓRIO DE PERFORMANCE', M, 44);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(18);
+    doc.setTextColor(232, 237, 245);
+    doc.text(clientName, M, 68);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(136, 150, 168);
+    doc.text(`Período: ${period}   ·   ${today}`, M, 78);
+
+    doc.setDrawColor(20, 30, 48);
+    doc.line(M, 86, W - M, 86);
+
+    const kpiSelectors = [
+      { label: 'INVESTIMENTO', id: 'kpi-invest', color: [79,142,247] },
+      { label: 'ROAS',         id: 'kpi-roas',   color: [52,211,153] },
+      { label: 'LEADS',        id: 'kpi-leads',  color: [251,191,36] },
+      { label: 'CPL',          id: 'kpi-cpl',    color: [167,139,250] },
+    ];
+
+    kpiSelectors.forEach((k, i) => {
+      const x = M + (i % 2) * 91;
+      const y = 93 + Math.floor(i / 2) * 34;
+      const value = document.getElementById(k.id)?.textContent?.trim() || '—';
+
+      doc.setFillColor(10, 14, 22);
+      doc.roundedRect(x, y, 86, 29, 2, 2, 'F');
+      doc.setFillColor(...k.color);
+      doc.rect(x, y, 86, 1.5, 'F');
+      doc.setFontSize(6.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(61, 77, 96);
+      doc.text(k.label, x + 4, y + 8);
+      doc.setFontSize(15);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...k.color);
+      doc.text(value, x + 4, y + 22);
+    });
+
+    doc.setFontSize(7);
+    doc.text('Ads Vallor · Vallor Growth Platform · Confidencial', M, H - 8);
+    doc.text('1 / 2', W - M - 8, H - 8);
+
+    // PAGE 2 — MULTI-BM TABLE
+    doc.addPage();
+    doc.setFillColor(6, 8, 13);
+    doc.rect(0, 0, W, H, 'F');
+    doc.setFillColor(79, 142, 247);
+    doc.rect(0, 0, W, 2, 'F');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(232, 237, 245);
+    doc.text('Visão Consolidada — Todos os Clientes', M, 16);
+
+    const cols   = ['CLIENTE', 'INVEST.', 'ROAS', 'LEADS', 'SALDO', 'STATUS'];
+    const widths = [60, 26, 20, 20, 26, 22];
+    let cx = M;
+
+    doc.setFillColor(14, 20, 32);
+    doc.rect(M, 22, W - M * 2, 8, 'F');
+    cols.forEach((col, i) => {
+      doc.setFontSize(6);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(61, 77, 96);
+      doc.text(col, cx + 2, 27);
+      cx += widths[i];
+    });
+
+    const tableRows = document.querySelectorAll('#bmTableBody tr');
+    let ry = 34;
+
+    tableRows.forEach((row, i) => {
+      const cells = row.querySelectorAll('td');
+      if (!cells.length) return;
+      if (i % 2 === 0) {
+        doc.setFillColor(10, 14, 22);
+        doc.rect(M, ry - 4, W - M * 2, 9, 'F');
+      }
+      const vals = Array.from(cells).slice(0, 6).map(c => c.textContent.trim().substring(0, 18));
+      cx = M;
+      vals.forEach((v, j) => {
+        doc.setFont('helvetica', j === 0 ? 'bold' : 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(232, 237, 245);
+        doc.text(v, cx + 2, ry + 1);
+        cx += widths[j];
+      });
+      ry += 9;
+      if (ry > H - 20) { doc.addPage(); ry = 20; }
+    });
+
+    doc.setFontSize(7);
+    doc.text('Ads Vallor · Vallor Growth Platform · Confidencial', M, H - 8);
+    doc.text('2 / 2', W - M - 8, H - 8);
+
+    const filename = `AdsVallor_${clientName.replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.pdf`;
+    doc.save(filename);
+    showToast(`✅ PDF baixado: ${filename}`);
+
+  } catch(err) {
+    console.error('PDF Error:', err);
+    showToast('❌ Erro ao gerar PDF: ' + err.message);
+  }
+}
+
 // Função de atualizar chamada pelo HTML
 window.refreshData = async function() {
   loadingAnim();
@@ -1457,20 +1757,187 @@ window.refreshData = async function() {
 };
 
 // Aliases para compatibilidade
-window.setNavTab = function(targetId, btnElt) {
+// ── NAVEGAÇÃO & ROUTING ───────────────────────────────────
+window.setNavTab = function(tabId, btnElt) {
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   if(btnElt) btnElt.classList.add('active');
 
-  ['view-dashboard', 'view-pixels', 'view-config', 'view-empty'].forEach(id => {
-    const el = document.getElementById(id);
+  const views = ['dashboard', 'relatorios', 'criativos', 'audiencias', 'pixels', 'financeiro', 'config'];
+  views.forEach(v => {
+    const el = document.getElementById('view-' + v);
     if(el) el.style.display = 'none';
   });
 
-  const target = document.getElementById('view-' + targetId);
-  if(target) target.style.display = (targetId === 'empty' || targetId === 'view-empty') ? 'flex' : 'block';
+  const target = document.getElementById('view-' + tabId);
+  if (target) {
+    target.style.display = 'block';
+  } else {
+    // Se a div não existir, renderiza dinamicamente no container main
+    switch(tabId) {
+      case 'relatorios': renderRelatorios(); break;
+      case 'criativos':  renderCriativos();  break;
+      case 'audiencias': renderAudiencias(); break;
+      case 'pixels':     renderPixels();      break;
+      case 'financeiro': renderFinanceiro(); break;
+    }
+  }
+
+  if (window.innerWidth <= 768) toggleMobileSidebar();
 };
 
 window.setTab = (targetId, btnElt) => window.setNavTab(targetId, btnElt);
+
+function getMainContainer() {
+  return document.querySelector('.content') || document.querySelector('.main');
+}
+
+function toggleMobileSidebar() {
+  document.querySelector('.sidebar')?.classList.toggle('mobile-open');
+  document.querySelector('.sidebar-backdrop')?.classList.toggle('visible');
+}
+
+// ── RENDERIZAÇÃO DE PÁGINAS ────────────────────────────────
+function renderRelatorios() {
+  const main = getMainContainer();
+  main.innerHTML = `
+    <div class="page-header" style="margin-bottom:24px;">
+      <h2 style="font-size:20px;font-weight:500;">📋 Relatórios</h2>
+      <p style="color:var(--text3);font-size:13px;margin-top:4px;">Gere e exporte relatórios dos seus clientes</p>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;">
+      <div class="kpi-card blue" style="cursor:pointer;" onclick="exportPDF()">
+        <div style="font-size:32px;margin-bottom:12px;">📄</div>
+        <div style="font-size:14px;font-weight:600;margin-bottom:6px;">PDF Completo</div>
+        <div style="font-size:12px;color:var(--text2);">Dashboard completo em PDF com KPIs e análise de performance.</div>
+      </div>
+      <div class="kpi-card purple">
+        <div style="font-size:32px;margin-bottom:12px;">📊</div>
+        <div style="font-size:14px;font-weight:600;margin-bottom:6px;">Snapshots Salvos</div>
+        <div id="snapshotCount" style="font-size:24px;font-weight:700;color:var(--accent);margin-top:8px;">—</div>
+      </div>
+    </div>
+    <div class="kpi-card" style="margin-top:20px;">
+      <div style="font-size:13px;font-weight:500;margin-bottom:16px;">📅 Histórico de Performance</div>
+      <div id="historyTable" style="font-size:12px;">Carregando histórico...</div>
+    </div>
+  `;
+  loadReportHistory();
+}
+
+async function loadReportHistory() {
+  try {
+    const { data } = await window.supabaseClient.from('account_snapshots').select('*').order('date', { ascending: false }).limit(10);
+    const countEl = document.getElementById('snapshotCount');
+    if (countEl && data) countEl.textContent = data.length;
+    
+    const table = document.getElementById('historyTable');
+    if (table && data?.length) {
+      table.innerHTML = `<table style="width:100%; border-collapse:collapse;">
+        <thead><tr style="border-bottom:1px solid var(--border);"><th align="left" style="padding:8px">Conta</th><th align="left" style="padding:8px">Data</th><th align="right" style="padding:8px">Invest.</th><th align="right" style="padding:8px">Leads</th></tr></thead>
+        <tbody>${data.map(r => `<tr style="border-bottom:1px solid var(--border);"><td style="padding:8px">${r.account_name}</td><td style="padding:8px">${r.date}</td><td align="right" style="padding:8px">${toBRL(r.spend)}</td><td align="right" style="padding:8px">${r.leads}</td></tr>`).join('')}</tbody>
+      </table>`;
+    }
+  } catch(e) {}
+}
+
+function renderCriativos() {
+  const main = getMainContainer();
+  main.innerHTML = `
+    <div class="page-header" style="margin-bottom:24px;">
+      <h2 style="font-size:20px;font-weight:500;">🎨 Criativos</h2>
+      <p style="color:var(--text3);font-size:13px;margin-top:4px;">Análise visual de todos os anúncios ativos</p>
+    </div>
+    <div class="creatives-grid" id="creativesGridPage"></div>
+  `;
+  // Reutiliza a lógica de buscar criativos pro dashboard
+  const grid = document.getElementById('creativesGridPage');
+  grid.innerHTML = document.getElementById('creativesGrid')?.innerHTML || '<p style="color:var(--text3)">Carregue uma conta no Dashboard primeiro.</p>';
+}
+
+function renderAudiencias() {
+  const main = getMainContainer();
+  main.innerHTML = `
+    <div class="page-header" style="margin-bottom:24px;">
+      <h2 style="font-size:20px;font-weight:500;">👥 Audiências & Multi-BM</h2>
+      <p style="color:var(--text3);font-size:13px;margin-top:4px;">Visão consolidada de todos os clientes</p>
+    </div>
+    <div class="multi-bm" id="audiencesBM"></div>
+  `;
+  const table = document.querySelector('.multi-bm').cloneNode(true);
+  document.getElementById('audiencesBM').appendChild(table);
+}
+
+function renderPixels() {
+  const main = getMainContainer();
+  main.innerHTML = `
+    <div class="page-header" style="margin-bottom:24px;">
+      <h2 style="font-size:20px;font-weight:500;">📡 Gestão de Pixels</h2>
+    </div>
+    <div style="display:grid;gap:12px;" id="pixelsPageList"></div>
+  `;
+  const container = document.getElementById('pixelsPageList');
+  window.allAdAccounts.forEach(acc => {
+    container.innerHTML += `<div class="kpi-card" style="display:flex;justify-content:space-between;align-items:center;padding:16px;">
+      <div><div style="font-weight:500">${acc.name}</div><div style="font-size:11px;color:var(--text3)">${acc.id}</div></div>
+      <div class="status-chip ok">● ATIVO</div>
+    </div>`;
+  });
+}
+
+function renderFinanceiro() {
+  const main = getMainContainer();
+  main.innerHTML = `
+    <div class="page-header" style="margin-bottom:24px;">
+      <h2 style="font-size:20px;font-weight:500;">💰 Financeiro</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;">
+      ${window.allAdAccounts.map(acc => `<div class="kpi-card" style="padding:20px;">
+        <div style="font-weight:500;margin-bottom:12px;">${acc.name}</div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:8px;"><span>Saldo</span><span style="color:var(--green)">${toBRL(acc.balance/100)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;"><span>Total Gasto</span><span style="color:var(--accent)">${toBRL(acc.amount_spent/100)}</span></div>
+      </div>`).join('')}
+    </div>
+  `;
+}
+
+function generateRecommendations(m) {
+  const recs = [];
+  if(m.roas < 2) recs.push('Aumentar ROAS: Verifique a segmentação de público. Se o ROAS está baixo, o criativo pode estar trazendo cliques curiosos, mas não compradores.');
+  if(m.ctr < 1.0) recs.push('Melhorar CTR: Seus criativos não estão parando o scroll. Teste novos ganchos (headlines) e cores mais vibrantes nos primeiros 3 segundos.');
+  if(m.roas >= 4) recs.push('Escalar Conta: ROAS acima de 4x indica alto potencial. Aumente o orçamento em 15-20% a cada 48h para manter a saúde da escala.');
+  if(m.ctr >= 2.0) recs.push('Criativo Vencedor: O CTR está fenomenal. Use este criativo como base para novas variações e teste em públicos Lookalike.');
+  if(recs.length === 0) recs.push('Estabilidade: Continue monitorando os KPIs. No momento, não há necessidade de alterações drásticas.');
+  return recs;
+}
+
+function updateRecommendationsUI(m) {
+  const recs = generateRecommendations(m);
+  const container = document.getElementById('view-empty'); // Usando por enquanto ou criando elemento
+  // Por simplicidade, vamos mostrar via toast se não houver container
+  console.log('IA Recomendações:', recs);
+}
+
+async function fetchHistoricalTrends(accountId) {
+  try {
+    const { data, error } = await window.supabaseClient
+      .from('account_snapshots')
+      .select('*')
+      .eq('account_id', accountId)
+      .order('date', { ascending: true })
+      .limit(30);
+    if (data && data.length > 5) {
+      const labels = data.map(d => new Date(d.date).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' }));
+      const spends = data.map(d => d.spend);
+      const leads = data.map(d => d.leads);
+      if (window.mainChartInstance) {
+        window.mainChartInstance.data.labels = labels;
+        window.mainChartInstance.data.datasets[0].data = spends;
+        window.mainChartInstance.data.datasets[1].data = leads;
+        window.mainChartInstance.update();
+      }
+    }
+  } catch(e) { console.warn('Erro ao carregar tendências:', e); }
+}
 
 async function saveSnapshot(accountId, accountName, period, insightsArr) {
   try {
@@ -1628,6 +2095,7 @@ async function loadAccountData(accountId, accountName) {
     renderAlertsPanel(checkAccountAlerts(accountName, metrics));
     
     await saveSnapshot(accountId, accountName, preset, insightsRes.data);
+    await fetchHistoricalTrends(accountId);
 
   } catch(e) {
     showToast('❌ Erro ao carregar dados: ' + e.message);
@@ -1719,179 +2187,19 @@ async function fetchCreativeThumbnails(adIds, metaToken) {
   const thumbnails = {};
   try {
     const promises = adIds.slice(0, 10).map(async (adId) => {
-      const url = new URL(`${GRAPH}/${adId}`);
+      const url = new URL(`https://graph.facebook.com/v19.0/${adId}`);
       url.searchParams.set('fields', 'creative{thumbnail_url,image_url,video_id}');
       url.searchParams.set('access_token', metaToken);
       const res = await fetch(url.toString());
       const data = await res.json();
-      if (data.creative?.thumbnail_url) {
-        thumbnails[adId] = data.creative.thumbnail_url;
-      } else if (data.creative?.image_url) {
-        thumbnails[adId] = data.creative.image_url;
-      }
+      if (data.creative?.thumbnail_url) thumbnails[adId] = data.creative.thumbnail_url;
+      else if (data.creative?.image_url) thumbnails[adId] = data.creative.image_url;
     });
     await Promise.all(promises);
-  } catch(e) {
-    console.warn('Thumbnails não disponíveis:', e.message);
-  }
+  } catch(e) { console.warn('Thumbnails indisponíveis:', e.message); }
   return thumbnails;
 }
 
-// Versão expandida do updateCreatives com imagens reais
-async function updateCreatives(ads) {
-  if (!ads || !ads.length) return;
-  const sorted = [...ads].sort((a, b) => parseFloat(b.spend || 0) - parseFloat(a.spend || 0)).slice(0, 10);
-  const adIds = sorted.map(a => a.ad_id).filter(Boolean);
-
-  // Buscar thumbnails reais
-  const thumbnails = adIds.length ? await fetchCreativeThumbnails(adIds, META_TOKEN) : {};
-
-  const colors = ['#3f8ef7','#8b5cf6','#f59e0b','#10b981','#ef4444','#06b6d4','#ec4899','#84cc16','#f97316','#6366f1'];
-  const emojis = ['🏆','🎯','⚡','✅','🎨','📊','🔥','💡','📱','⭐'];
-  const grid = document.getElementById('creativesGrid');
-
-  grid.innerHTML = sorted.map((ad, i) => {
-    const leads = getActionValue(ad.actions, ['lead', 'onsite_conversion.lead_grouped', 'offsite_conversion.fb_pixel_lead']) || parseInt(ad.clicks || 0);
-    const revenue = getActionValue(ad.action_values, ['purchase', 'omni_purchase', 'offsite_conversion.fb_pixel_purchase']);
-    const spend = parseFloat(ad.spend || 0);
-    const roas = revenue > 0 && spend > 0 ? (revenue / spend).toFixed(1) + 'x' : '—';
-    const ctr = parseFloat(ad.ctr || 0).toFixed(2) + '%';
-    const name = (ad.ad_name || 'Anúncio').length > 18 ? (ad.ad_name || 'Anúncio').slice(0, 18) + '…' : (ad.ad_name || 'Anúncio');
-    const thumb = thumbnails[ad.ad_id];
-
-    // Thumb real ou fallback emoji
-    const thumbHTML = thumb
-      ? `<img src="${thumb}" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;border-radius:8px 8px 0 0;" onerror="this.parentElement.innerHTML='<span style=\"position:relative;z-index:1;font-size:32px\">${emojis[i]}</span>';">`
-      : `<div class="creative-thumb-bg" style="background:${colors[i]}"></div><span style="position:relative;z-index:1;font-size:32px">${emojis[i]}</span>`;
-
-    return `
-      <div class="creative-card" onclick="showToast('📊 ${ad.ad_name} — Gasto: ${toBRL(spend)}')">
-        <div class="creative-thumb" style="position:relative;overflow:hidden;">
-          ${thumbHTML}
-          <div class="creative-rank">#${i + 1}</div>
-          ${i === 0 ? '<div class="creative-badge">TOP</div>' : ''}
-        </div>
-        <div class="creative-info">
-          <div class="creative-name">${name}</div>
-          <div class="creative-stats">
-            <span>ROAS <span class="val">${roas}</span></span>
-            <span>CTR <span class="val">${ctr}</span></span>
-          </div>
-          <div class="creative-stats" style="margin-top:2px">
-            <span>Gasto <span class="val">${toBRL(spend)}</span></span>
-          </div>
-        </div>
-      </div>`;
-  }).join('');
-}
-
-async function exportPDF() {
-  // Fechar modal se estiver aberto
-  if(window.hideExport) hideExport();
-  showToast('📄 Gerando PDF... aguarde');
-  if(window.loadingAnim) loadingAnim();
-
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF('p', 'mm', 'a4');
-  const pageWidth = 210;
-  const pageHeight = 297;
-  const margin = 12;
-
-  // ── PÁGINA 1: CAPA ──────────────────────────────────────────────
-  doc.setFillColor(6, 8, 13);
-  doc.rect(0, 0, pageWidth, pageHeight, 'F');
-  doc.setFillColor(79, 142, 247);
-  doc.rect(0, 0, pageWidth, 2, 'F');
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(32);
-  doc.setTextColor(232, 237, 245);
-  doc.text('Ads', margin, 40);
-  doc.setTextColor(79, 142, 247);
-  doc.text('Vallor', margin + 26, 40);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(11);
-  doc.setTextColor(136, 150, 168);
-  doc.text('AGENCY DASHBOARD — RELATÓRIO DE PERFORMANCE', margin, 50);
-
-  const clientName = document.getElementById('selectedClient')?.textContent || 'Cliente';
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(22);
-  doc.setTextColor(232, 237, 245);
-  doc.text(clientName, margin, 80);
-
-  const activePeriod = document.querySelector('.period-btn.active')?.textContent || '7 dias';
-  const today = new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(11);
-  doc.setTextColor(136, 150, 168);
-  doc.text(`Período: ${activePeriod}  ·  Gerado em: ${today}`, margin, 92);
-
-  doc.setDrawColor(30, 41, 59);
-  doc.setLineWidth(0.5);
-  doc.line(margin, 100, pageWidth - margin, 100);
-
-  const kpiData = [
-    { label: 'INVESTIMENTO TOTAL', id: 'kpi-invest', color: [79, 142, 247] },
-    { label: 'ROAS',               id: 'kpi-roas',   color: [52, 211, 153] },
-    { label: 'LEADS GERADOS',      id: 'kpi-leads',  color: [251, 191, 36] },
-    { label: 'CUSTO POR LEAD',     id: 'kpi-cpl',    color: [167, 139, 250] },
-  ];
-
-  kpiData.forEach((kpi, i) => {
-    const x = margin + (i % 2) * 92;
-    const y = 115 + Math.floor(i / 2) * 40;
-    const value = document.getElementById(kpi.id)?.textContent || '—';
-    doc.setFillColor(10, 14, 22);
-    doc.roundedRect(x, y, 88, 32, 3, 3, 'F');
-    doc.setFillColor(...kpi.color);
-    doc.rect(x, y, 88, 1.5, 'F');
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7);
-    doc.setTextColor(136, 150, 168);
-    doc.text(kpi.label, x + 5, y + 9);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(18);
-    doc.setTextColor(...kpi.color);
-    doc.text(value, x + 5, y + 24);
-  });
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(136, 150, 168);
-  doc.text('Ads Vallor — Vallor Growth Platform — Relatório Confidencial', margin, pageHeight - 10);
-  doc.text(`Página 1`, pageWidth - margin - 15, pageHeight - 10);
-
-  // ── PÁGINA 2: GRÁFICOS ──────────────────────────────────────────
-  doc.addPage();
-  doc.setFillColor(6, 8, 13);
-  doc.rect(0, 0, pageWidth, pageHeight, 'F');
-  doc.setFillColor(79, 142, 247);
-  doc.rect(0, 0, pageWidth, 2, 'F');
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  doc.setTextColor(232, 237, 245);
-  doc.text('Performance Visual', margin, 18);
-
-  try {
-    const mainChartEl = document.getElementById('mainChart');
-    if (mainChartEl) {
-      const canvas = await html2canvas(mainChartEl.parentElement, { backgroundColor: '#0a0e16', scale: 2 });
-      doc.addImage(canvas.toDataURL('image/png'), 'PNG', margin, 30, 186, 90);
-    }
-    const lowerRow = document.querySelector('.lower-row');
-    if (lowerRow) {
-      const canvas2 = await html2canvas(lowerRow, { backgroundColor: '#06080d', scale: 2 });
-      doc.addImage(canvas2.toDataURL('image/png'), 'PNG', margin, 130, 186, 100);
-    }
-  } catch(e) { console.warn('Erro ao capturar gráficos:', e); }
-
-  const fileName = `Relatorio_${clientName.replace(/\s/g,'_')}.pdf`;
-  doc.save(fileName);
-  showToast(`✅ PDF gerado: ${fileName}`);
-}
 
 function updateMainChart(daily) {
   if (!daily.length) return;
@@ -1985,24 +2293,28 @@ function updateGeo(geo) {
 }
 
 // ── CRIATIVOS REAIS ──────────────────────────────────────────
-function updateCreatives(ads) {
-  if (!ads.length) return;
+async function updateCreatives(ads) {
+  if (!ads || !ads.length) return;
   const sorted = [...ads].sort((a,b) => parseFloat(b.spend||0) - parseFloat(a.spend||0)).slice(0,10);
+  const adIds = sorted.map(a => a.ad_id).filter(Boolean);
+  const thumbnails = adIds.length ? await fetchCreativeThumbnails(adIds, window.META_TOKEN) : {};
   const grid = document.getElementById('creativesGrid');
+  if(!grid) return;
   const colors = ['#3b82f6','#8b5cf6','#f59e0b','#10b981','#ef4444','#06b6d4','#ec4899','#84cc16','#f97316','#6366f1'];
   const emojis = ['🏆','🎯','⚡','✅','🎨','📊','🔥','💡','📱','⭐'];
   grid.innerHTML = sorted.map((ad, i) => {
-    const leads = getActionValue(ad.actions, ['lead','onsite_conversion.lead_grouped','offsite_conversion.fb_pixel_lead']) || parseInt(ad.clicks||0);
-    const revenue = getActionValue(ad.action_values, ['purchase','omni_purchase']);
     const spend = parseFloat(ad.spend||0);
+    const revenue = getActionValue(ad.action_values, ['purchase','omni_purchase','offsite_conversion.fb_pixel_purchase']);
     const roas = revenue > 0 && spend > 0 ? (revenue/spend).toFixed(1)+'x' : '—';
     const ctr = parseFloat(ad.ctr||0).toFixed(2) + '%';
-    const name = (ad.ad_name||'Anúncio').length > 14 ? (ad.ad_name||'Anúncio').slice(0,14)+'…' : (ad.ad_name||'Anúncio');
+    const name = (ad.ad_name||'Anúncio').length > 18 ? (ad.ad_name||'Anúncio').slice(0,18)+'…' : (ad.ad_name||'Anúncio');
+    const thumb = thumbnails[ad.ad_id];
+    const thumbHTML = thumb ? `<img src="${thumb}" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;border-radius:8px 8px 0 0;" onerror="this.parentElement.innerHTML='<span style=\"position:relative;z-index:1;font-size:32px\">${emojis[i]}</span>';">`
+                            : `<div class="creative-thumb-bg" style="background:${colors[i]}"></div><span style="position:relative;z-index:1;font-size:32px">${emojis[i]}</span>`;
     return `
-      <div class="creative-card" onclick="showToast('📊 ${name} — Gasto: ${toBRL(spend)}')">
-        <div class="creative-thumb">
-          <div class="creative-thumb-bg" style="background:${colors[i]}"></div>
-          <span style="position:relative;z-index:1;font-size:32px">${emojis[i]}</span>
+      <div class="creative-card" onclick="showToast('📊 ${ad.ad_name} — Gasto: ${toBRL(spend)}')">
+        <div class="creative-thumb" style="position:relative;overflow:hidden;">
+          ${thumbHTML}
           <div class="creative-rank">#${i+1}</div>
           ${i===0 ? '<div class="creative-badge">TOP</div>' : ''}
         </div>
@@ -2107,10 +2419,38 @@ const ctas = [
 ];
 
 // --- INIT ---
+async function doLogin() {
+  const email = document.getElementById('loginEmail').value;
+  const password = document.getElementById('loginPassword').value;
+  const { data, error } = await window.supabaseClient.auth.signInWithPassword({ email, password });
+  if (error) {
+    document.getElementById('loginError').style.display = 'block';
+    return;
+  }
+  document.getElementById('loginScreen').style.display = 'none';
+  showToast('✅ Bem-vindo!');
+  await getMetaToken();
+  loadAdAccounts();
+}
+
+async function checkSession() {
+  const { data: { session } } = await window.supabaseClient.auth.getSession();
+  if (session) {
+    document.getElementById('loginScreen').style.display = 'none';
+    await getMetaToken();
+    loadAdAccounts();
+  }
+}
+
+async function doLogout() {
+  await window.supabaseClient.auth.signOut();
+  location.reload();
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   setDate();
   loadingAnim();
-  renderBMTable(); // placeholder enquanto carrega
+  renderBMTable();
   renderCreatives();
   renderCopies();
   setTimeout(() => {
@@ -2118,8 +2458,7 @@ document.addEventListener('DOMContentLoaded', () => {
     roasChartInstance = initROASChart();
     window.ageChartInstance = initAgeChart();
     initSpendChart();
-    // Conecta à API real
-    loadAdAccounts();
+    checkSession();
   }, 300);
 });
 

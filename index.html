@@ -5,6 +5,8 @@
   <title>Ads Vallor — Agency Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@300;400;500&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@1&display=swap" rel="stylesheet">
   <style>
@@ -357,40 +359,40 @@
           <div class="card-top-line" style="background: linear-gradient(90deg, var(--accent), transparent);"></div>
           <div class="label-caps mono">Investimento Total</div>
           <div class="kpi-main-val">
-            <span class="serif-kpi" id="kpiSpend" style="color: var(--accent);">R$ 0</span>
+            <span class="serif-kpi" id="kpi-invest" style="color: var(--accent);">R$ 0</span>
           </div>
         </div>
         <div class="card">
           <div class="card-top-line" style="background: linear-gradient(90deg, var(--green), transparent);"></div>
           <div class="label-caps mono">ROAS</div>
           <div class="kpi-main-val">
-            <span class="serif-kpi" id="kpiRoas" style="color: var(--green);">0.0x</span>
+            <span class="serif-kpi" id="kpi-roas" style="color: var(--green);">0.0x</span>
           </div>
         </div>
         <div class="card">
           <div class="card-top-line" style="background: linear-gradient(90deg, var(--orange), transparent);"></div>
           <div class="label-caps mono">Leads Gerados</div>
           <div class="kpi-main-val">
-            <span class="serif-kpi" id="kpiLeads" style="color: var(--orange);">0</span>
+            <span class="serif-kpi" id="kpi-leads" style="color: var(--orange);">0</span>
           </div>
         </div>
         <div class="card">
           <div class="card-top-line" style="background: linear-gradient(90deg, var(--purple), transparent);"></div>
           <div class="label-caps mono">Custo por Lead</div>
           <div class="kpi-main-val">
-            <span class="serif-kpi" id="kpiCpl" style="color: var(--purple);">R$ 0</span>
+            <span class="serif-kpi" id="kpi-cpl" style="color: var(--purple);">R$ 0</span>
           </div>
         </div>
       </div>
       
       <!-- 6 Sec KPIs -->
       <div class="sec-kpi-grid">
-        <div class="card sec-card"><div class="card-subtitle">Alcance</div><div class="sec-val" id="skpiReach">—</div></div>
-        <div class="card sec-card"><div class="card-subtitle">Impressões</div><div class="sec-val" id="skpiImp">—</div></div>
-        <div class="card sec-card"><div class="card-subtitle">CTR</div><div class="sec-val" id="skpiCtr">—</div></div>
-        <div class="card sec-card"><div class="card-subtitle">CPC Médio</div><div class="sec-val" id="skpiCpc">—</div></div>
-        <div class="card sec-card"><div class="card-subtitle">CPM</div><div class="sec-val" id="skpiCpm">—</div></div>
-        <div class="card sec-card"><div class="card-subtitle">Conversões (Achvs)</div><div class="sec-val" id="skpiConv">—</div></div>
+        <div class="card sec-card"><div class="card-subtitle">Alcance</div><div class="sec-val kpi-secondary-value" id="kpi-reach">—</div></div>
+        <div class="card sec-card"><div class="card-subtitle">Impressões</div><div class="sec-val kpi-secondary-value" id="kpi-impressions">—</div></div>
+        <div class="card sec-card"><div class="card-subtitle">CTR</div><div class="sec-val kpi-secondary-value" id="kpi-ctr">—</div></div>
+        <div class="card sec-card"><div class="card-subtitle">CPC Médio</div><div class="sec-val kpi-secondary-value" id="kpi-cpc">—</div></div>
+        <div class="card sec-card"><div class="card-subtitle">CPM</div><div class="sec-val kpi-secondary-value" id="kpi-cpm">—</div></div>
+        <div class="card sec-card"><div class="card-subtitle">Conversões (Achvs)</div><div class="sec-val kpi-secondary-value" id="kpi-conversions">—</div></div>
       </div>
       
       <!-- Charts Row -->
@@ -431,9 +433,10 @@
       
       <!-- Copies Section -->
       <div class="card">
-        <div class="card-title">Análise de Cópias (Descobertas Recentes)</div>
+        <div class="card-title" style="margin-bottom:16px;">Análise de Cópias (Descobertas Recentes)</div>
         <div class="copies-row" id="copiesRow">
-          <!-- Populated via JS based on ads data text (mock/extrapolated if text not directly available) -->
+          <div id="bestTexts" class="copies-texts" style="grid-column: span 2;"></div>
+          <div id="bestCTAs" class="copies-ctas"></div>
         </div>
       </div>
       
@@ -541,7 +544,7 @@
     </label>
     <div style="display:flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
       <button class="btn btn-ghost" onclick="closeExportModal()">Cancelar</button>
-      <button class="btn btn-primary" onclick="closeExportModal(); showToast('✅ Download iniciado!');">Exportar</button>
+      <button class="btn btn-primary" onclick="closeExportModal(); exportPDF();">Exportar</button>
     </div>
   </div>
 </div>
@@ -825,13 +828,14 @@
         metaGet(`${accountId}/insights`, { fields: 'campaign_name,spend,actions,action_values', date_preset: window.currentPreset, level: 'campaign', sort: 'spend_descending', limit: 5 }).catch(()=>({data:[]}))
       ]);
 
+      // Render sections
       renderKPIs(genInsights.data[0]);
       renderMainChart(dayInsights.data);
       renderDemographics(demoInsights.data);
       renderGeo(geoInsights.data);
-      renderTopAds(topAds.data);
+      updateCreativesWithRealImages(topAds.data);
       renderRoasChart(topCampaigns.data);
-      renderMockCopies();
+      updateCopiesFromRealAds(topAds.data);
       
       await saveSnapshot(accountId, name, window.currentPreset, genInsights.data[0]);
       showToast('✅ Dados atualizados!');
@@ -848,15 +852,16 @@
     const leads = getActionValue(ins.actions, ['lead', 'onsite_conversion.lead_grouped', 'offsite_conversion.fb_pixel_lead']);
     const revenue = getActionValue(ins.action_values, ['purchase', 'omni_purchase', 'offsite_conversion.fb_pixel_purchase']);
     
-    if(document.getElementById('kpiSpend')) document.getElementById('kpiSpend').textContent = toBRL(spend);
-    if(document.getElementById('kpiRoas')) document.getElementById('kpiRoas').textContent = revenue > 0 && spend > 0 ? (revenue / spend).toFixed(1) + 'x' : '—';
-    if(document.getElementById('kpiLeads')) document.getElementById('kpiLeads').textContent = Math.round(leads);
-    if(document.getElementById('kpiCpl')) document.getElementById('kpiCpl').textContent = leads > 0 ? toBRL(spend / leads) : 'R$ 0';
-    if(document.getElementById('skpiReach')) document.getElementById('skpiReach').textContent = nFormat(ins.reach);
-    if(document.getElementById('skpiImp')) document.getElementById('skpiImp').textContent = nFormat(ins.impressions);
-    if(document.getElementById('skpiCtr')) document.getElementById('skpiCtr').textContent = (parseFloat(ins.ctr||0)).toFixed(2) + '%';
-    if(document.getElementById('skpiCpc')) document.getElementById('skpiCpc').textContent = toBRL(ins.cpc);
-    if(document.getElementById('skpiCpm')) document.getElementById('skpiCpm').textContent = toBRL(ins.cpm);
+    if(document.getElementById('kpi-invest')) document.getElementById('kpi-invest').textContent = toBRL(spend);
+    if(document.getElementById('kpi-roas')) document.getElementById('kpi-roas').textContent = revenue > 0 && spend > 0 ? (revenue / spend).toFixed(1) + 'x' : '—';
+    if(document.getElementById('kpi-leads')) document.getElementById('kpi-leads').textContent = Math.round(leads);
+    if(document.getElementById('kpi-cpl')) document.getElementById('kpi-cpl').textContent = leads > 0 ? toBRL(spend / leads) : 'R$ 0';
+    if(document.getElementById('kpi-reach')) document.getElementById('kpi-reach').textContent = nFormat(ins.reach);
+    if(document.getElementById('kpi-impressions')) document.getElementById('kpi-impressions').textContent = nFormat(ins.impressions);
+    if(document.getElementById('kpi-ctr')) document.getElementById('kpi-ctr').textContent = (parseFloat(ins.ctr||0)).toFixed(2) + '%';
+    if(document.getElementById('kpi-cpc')) document.getElementById('kpi-cpc').textContent = toBRL(ins.cpc);
+    if(document.getElementById('kpi-cpm')) document.getElementById('kpi-cpm').textContent = toBRL(ins.cpm);
+    if(document.getElementById('kpi-conversions')) document.getElementById('kpi-conversions').textContent = Math.round(leads);
   }
 
   function renderDemographics(data) {
@@ -889,18 +894,46 @@
     cont.innerHTML = html;
   }
 
-  function renderTopAds(data) {
-    const cont = document.getElementById('creativesGrid');
-    if(!cont) return;
-    cont.innerHTML = '';
-    if(!data || data.length === 0) { cont.innerHTML = '<div class="card-subtitle">Sem dados</div>'; return; }
-    data.forEach((ad, i) => {
+  window.updateCreativesWithRealImages = async function(ads) {
+    const grid = document.getElementById('creativesGrid');
+    if (!grid) return;
+    if (!ads || !ads.length) { grid.innerHTML = '<div class="card-subtitle">Sem dados</div>'; return; }
+
+    const sorted = [...ads].sort((a, b) => parseFloat(b.spend || 0) - parseFloat(a.spend || 0)).slice(0, 10);
+
+    grid.innerHTML = sorted.map((ad, i) => {
       const rev = getActionValue(ad.action_values, ['purchase']), sp = parseFloat(ad.spend||0), roas = rev>0 && sp>0 ? (rev/sp).toFixed(2)+'x' : '-';
-      const div = document.createElement('div'); div.className = 'creative-card card';
-      div.innerHTML = `<div class="creative-thumb"><div class="rank-badge">#${i+1}</div>${i===0 ? '<div class="top-badge">TOP</div>':''}🖼️</div><div class="card-title" style="margin: 8px 0 4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${ad.ad_name}">${ad.ad_name}</div><div class="card-subtitle"><div>ROAS: <span class="t-green mono">${roas}</span></div><div>CTR: <span class="mono">${parseFloat(ad.ctr||0).toFixed(2)}%</span></div><div>Gasto: <span class="mono">${toBRL(sp)}</span></div></div>`;
-      cont.appendChild(div);
+      return `
+        <div class="creative-card card">
+          <div class="creative-thumb">
+            <img id="thumb-${i}" src="" style="width:100%;height:100%;object-fit:cover;display:none;border-radius:8px;" />
+            <span id="thumb-loading-${i}" style="font-size:24px;">⏳</span>
+            <div class="rank-badge">#${i + 1}</div>
+            ${i === 0 ? '<div class="top-badge">TOP</div>' : ''}
+          </div>
+          <div class="card-title" style="margin: 8px 0 4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${ad.ad_name}">${ad.ad_name}</div>
+          <div class="card-subtitle">
+            <div>ROAS: <span class="t-green mono">${roas}</span></div>
+            <div>CTR: <span class="mono">${parseFloat(ad.ctr || 0).toFixed(2)}%</span></div>
+            <div>Gasto: <span class="mono">${toBRL(sp)}</span></div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    sorted.forEach(async (ad, i) => {
+      const thumbUrl = await window.fetchAdThumbnail(ad.ad_id);
+      const img = document.getElementById(`thumb-${i}`);
+      const loading = document.getElementById(`thumb-loading-${i}`);
+      if (img && thumbUrl) {
+        img.src = thumbUrl;
+        img.style.display = 'block';
+        if (loading) loading.style.display = 'none';
+      } else if (loading) {
+        loading.textContent = ['🏆','🎯','⚡','✅','🎨','📊','🔥','💡','📱','⭐'][i] || '🖼️';
+      }
     });
-  }
+  };
 
   function initAllCharts() {
     if (typeof Chart === 'undefined') { console.error("Chart.js failed to load."); return; }
@@ -930,10 +963,124 @@
     window.chartInstances.roas.update();
   }
 
-  function renderMockCopies() {
-    const cont = document.getElementById('copiesRow'); if(!cont) return;
-    cont.innerHTML = `<div class="copy-item"><div class="label-caps" style="color:var(--accent); margin-bottom:8px;">Melhor Texto</div><div class="copy-text">"Cansado de agências que não entregam resultado? Descubra o método Vallor..."</div><div class="flex-between mono" style="font-size:11px; margin-top:12px;"><span>Conv. 4.2%</span> <span class="t-green">ROAS 3.5x</span></div></div><div class="copy-item"><div class="label-caps" style="color:var(--orange); margin-bottom:8px;">Melhor Head/Desc</div><div class="copy-text">"Clique e receba uma auditoria gratuita da sua conta."</div><div class="flex-between mono" style="font-size:11px; margin-top:12px;"><span>CTR 2.8%</span> <span class="t-green">Spnd R$5k</span></div></div><div class="copy-item"><div class="label-caps" style="color:var(--purple); margin-bottom:8px;">Melhor CTA</div><div class="card-title" style="margin-top:16px;">SAIBA MAIS</div><div class="flex-between mono" style="font-size:11px; margin-top:24px;"><span>Cliques: 1,402</span></div></div>`;
-  }
+  window.updateCopiesFromRealAds = function(ads) {
+    if (!ads || !ads.length) return;
+    const byCTR = [...ads].sort((a,b) => parseFloat(b.ctr||0) - parseFloat(a.ctr||0));
+    const bySpend = [...ads].sort((a,b) => parseFloat(b.spend||0) - parseFloat(a.spend||0));
+
+    const textsEl = document.getElementById('bestTexts');
+    if (textsEl) {
+      textsEl.innerHTML = `<div class="label-caps" style="color:var(--accent); margin-bottom:8px;">Melhores Textos (por CTR)</div>` + 
+        byCTR.slice(0, 3).map(ad => `
+          <div class="copy-item" style="margin-top:0; margin-bottom:12px;">
+            <div class="copy-text">"${(ad.ad_name || 'Anúncio').substring(0, 60)}"</div>
+            <div class="flex-between mono" style="font-size:11px;">
+              <span>CTR: <b class="t-green">${parseFloat(ad.ctr||0).toFixed(2)}%</b></span>
+              <span>Leads: <b>${getActionValue(ad.actions, ['lead','onsite_conversion.lead_grouped'])}</b></span>
+            </div>
+          </div>
+        `).join('');
+    }
+
+    const ctasEl = document.getElementById('bestCTAs');
+    if (ctasEl) {
+      ctasEl.innerHTML = `<div class="label-caps" style="color:var(--purple); margin-bottom:8px;">Principais CTAs</div>` + 
+        bySpend.slice(0, 5).map(ad => `
+          <div class="copy-item" style="margin-top:0; margin-bottom:8px; padding:8px 12px; display:flex; justify-content:space-between; align-items:center;">
+            <span class="mono" style="font-size:11px; color:var(--text2);">${(ad.ad_name || '—').substring(0, 20)}</span>
+            <span class="t-green mono" style="font-size:11px;">${parseFloat(ad.ctr||0).toFixed(1)}%</span>
+          </div>
+        `).join('');
+    }
+  };
+
+  /**
+   * PDF EXPORT IMPLEMENTATION
+   */
+  window.exportPDF = async function() {
+    showToast('📄 Gerando PDF...');
+    if (!window.jspdf || !window.html2canvas) { showToast('❌ Bibliotecas não carregadas'); return; }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('p', 'mm', 'a4');
+    const W = 210, H = 297, M = 12;
+
+    const clientName = document.getElementById('selectedClient')?.textContent?.trim() || 'Cliente';
+    const period = document.querySelector('.period-btn.active')?.textContent?.trim() || '7 dias';
+    const today = new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
+    const getText = (id) => document.getElementById(id)?.textContent?.trim() || '—';
+
+    // PAGE 1: COVER
+    doc.setFillColor(6, 8, 13); doc.rect(0, 0, W, H, 'F');
+    doc.setFillColor(79, 142, 247); doc.rect(0, 0, W, 2, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(30); doc.setTextColor(232, 237, 245); doc.text('Ads', M, 38);
+    doc.setTextColor(79, 142, 247); doc.setFont('helvetica', 'normal'); doc.text('Vallor', M + 22, 38);
+    doc.setFontSize(9); doc.setTextColor(61, 77, 96); doc.text('AGENCY DASHBOARD', M, 46);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(20); doc.setTextColor(232, 237, 245); doc.text(clientName, M, 72);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(136, 150, 168); doc.text(`Período: ${period}   ·   ${today}`, M, 82);
+    doc.setDrawColor(20, 30, 48); doc.setLineWidth(0.4); doc.line(M, 90, W - M, 90);
+
+    const kpis = [
+      { label: 'INVESTIMENTO', id: 'kpi-invest', color: [79, 142, 247] },
+      { label: 'ROAS',         id: 'kpi-roas',   color: [52, 211, 153] },
+      { label: 'LEADS',        id: 'kpi-leads',  color: [251, 191, 36] },
+      { label: 'CUSTO/LEAD',   id: 'kpi-cpl',    color: [167, 139, 250] },
+    ];
+    kpis.forEach((k, i) => {
+      const x = M + (i % 2) * 92, y = 98 + Math.floor(i / 2) * 36;
+      doc.setFillColor(10, 14, 22); doc.roundedRect(x, y, 87, 30, 2, 2, 'F');
+      doc.setFillColor(...k.color); doc.rect(x, y, 87, 1.5, 'F');
+      doc.setFontSize(7); doc.setTextColor(61, 77, 96); doc.setFont('helvetica', 'normal'); doc.text(k.label, x + 4, y + 9);
+      doc.setFontSize(16); doc.setFont('helvetica', 'bold'); doc.setTextColor(...k.color); doc.text(getText(k.id), x + 4, y + 23);
+    });
+
+    const sec = [ { label: 'ALCANCE', id: 'kpi-reach' }, { label: 'IMPRESSÕES', id: 'kpi-impressions' }, { label: 'CTR', id: 'kpi-ctr' }, { label: 'CPC', id: 'kpi-cpc' }, { label: 'CPM', id: 'kpi-cpm' }, { label: 'CONVERSÕES', id: 'kpi-conversions' } ];
+    doc.setFillColor(10, 14, 22); doc.roundedRect(M, 175, W - M * 2, 26, 2, 2, 'F');
+    sec.forEach((s, i) => {
+      const x = M + 4 + i * 30;
+      doc.setFontSize(6); doc.setTextColor(61, 77, 96); doc.text(s.label, x, 183);
+      doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(232, 237, 245);
+      const el = document.getElementById(s.id) || [...document.querySelectorAll('.kpi-secondary-value')][i];
+      doc.text(el?.textContent?.trim() || '—', x, 194);
+    });
+
+    // PAGE 2: CHARTS
+    doc.addPage(); doc.setFillColor(6, 8, 13); doc.rect(0, 0, W, H, 'F'); doc.setFillColor(79, 142, 247); doc.rect(0, 0, W, 2, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(232, 237, 245); doc.text('Performance Visual', M, 16);
+    try {
+      const mainCard = document.querySelector('#mainChart')?.closest('.card');
+      if (mainCard) { const c1 = await html2canvas(mainCard, { backgroundColor: '#0a0e16', scale: 1.5, useCORS: true }); doc.addImage(c1.toDataURL('image/png'), 'PNG', M, 28, 122, 68); }
+      const roasCard = document.querySelector('#roasChart')?.closest('.card');
+      if (roasCard) { const c2 = await html2canvas(roasCard, { backgroundColor: '#0a0e16', scale: 1.5, useCORS: true }); doc.addImage(c2.toDataURL('image/png'), 'PNG', M + 125, 28, 61, 68); }
+      const lower = document.querySelector('.lower-row');
+      if (lower) { const c3 = await html2canvas(lower, { backgroundColor: '#06080d', scale: 1.2, useCORS: true }); doc.addImage(c3.toDataURL('image/png'), 'PNG', M, 102, W - M * 2, 60); }
+    } catch(e) { console.warn(e); }
+
+    // PAGE 3: TABLE
+    doc.addPage(); doc.setFillColor(6, 8, 13); doc.rect(0, 0, W, H, 'F'); doc.setFillColor(79, 142, 247); doc.rect(0, 0, W, 2, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(232, 237, 245); doc.text('Visão Consolidada — Todos os Clientes', M, 16);
+    const cols  = ['CLIENTE', 'STATUS', 'Gasto', 'Leads', 'ROAS', 'SALDO'], widths = [58, 28, 28, 20, 20, 34];
+    let cx = M; doc.setFillColor(14, 20, 32); doc.rect(M, 22, W - M * 2, 8, 'F');
+    cols.forEach((col, i) => { doc.setFontSize(6.5); doc.setTextColor(61, 77, 96); doc.text(col, cx + 2, 27.5); cx += widths[i]; });
+    const rows = document.querySelectorAll('#multiBmTable tbody tr'); let ry = 35;
+    rows.forEach((row, i) => {
+      const cells = row.querySelectorAll('td'); if (!cells.length || i > 25) return;
+      if (i % 2 === 0) { doc.setFillColor(10, 14, 22); doc.rect(M, ry - 4, W - M * 2, 9, 'F'); }
+      const vals = [cells[0]?.querySelector('.card-title')?.textContent || '—', cells[1]?.textContent?.trim() || '—', cells[2]?.textContent?.trim() || '—', cells[3]?.textContent?.trim() || '—', cells[4]?.textContent?.trim() || '—', cells[5]?.textContent?.trim() || '—'];
+      cx = M; doc.setTextColor(232, 237, 245);
+      vals.forEach((v, j) => { doc.setFontSize(7.5); doc.text(String(v).substring(0, 22), cx + 2, ry + 1); cx += widths[j]; });
+      ry += 9;
+    });
+
+    const pages = doc.getNumberOfPages();
+    for (let p = 1; p <= pages; p++) {
+      doc.setPage(p); doc.setFontSize(7); doc.setTextColor(61, 77, 96);
+      doc.text('Ads Vallor · Vallor Growth Platform · Relatório Confidencial', M, H - 8);
+      doc.text(`Página ${p} de ${pages}`, W - M - 20, H - 8);
+    }
+    const fname = `AdsVallor_${clientName.replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.pdf`;
+    doc.save(fname); showToast(`✅ PDF gerado: ${fname}`);
+  };
 
   function buildMultiBmTable() {
     const tbody = document.querySelector('#multiBmTable tbody'); if(!tbody) return;
